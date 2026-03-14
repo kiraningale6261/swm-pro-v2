@@ -17,7 +17,7 @@
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.3.0",
     "@nestjs/websockets": "^10.3.0",
-    "@nestjs/socket.io": "^10.3.0",
+    "@nestjs/platform-socket.io": "^10.3.0",
     "@supabase/supabase-js": "^2.38.0",
     "bcryptjs": "^2.4.3",
     "dotenv": "^17.2.2",
