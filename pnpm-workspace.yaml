@@ -1,0 +1,6 @@
+packages:
+  - 'apps/admin'
+  - 'apps/api'
+  - 'apps/worker'
+  - 'packages/shared'
+  - 'packages/db'

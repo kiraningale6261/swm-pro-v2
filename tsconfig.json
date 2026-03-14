@@ -1,5 +1,11 @@
 {
-  "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
+  "include": [
+    "apps/admin/src/**/*",
+    "apps/api/src/**/*",
+    "apps/worker/src/**/*",
+    "packages/shared/src/**/*",
+    "packages/db/schema/**/*"
+  ],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
     "incremental": true,
@@ -16,8 +22,11 @@
     "baseUrl": ".",
     "types": ["node", "vite/client"],
     "paths": {
-      "@/*": ["./client/src/*"],
-      "@shared/*": ["./shared/*"]
+      "@swm-pro/admin/*": ["./apps/admin/src/*"],
+      "@swm-pro/api/*": ["./apps/api/src/*"],
+      "@swm-pro/worker/*": ["./apps/worker/src/*"],
+      "@swm-pro/shared/*": ["./packages/shared/src/*"],
+      "@swm-pro/db/*": ["./packages/db/schema/*"]
     }
   }
 }
