@@ -1,5 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
-import { SWM_QR_CODE_STATUS, SWM_QR_CODE_TYPE } from '@swm-pro/shared';
+
+// Standalone constants to bypass monorepo path issues
+const SWM_QR_CODE_STATUS = {
+  PENDING: 'pending',
+  SCANNED: 'scanned'
+};
+
+const SWM_QR_CODE_TYPE = {
+  CHECKPOINT: 'checkpoint'
+};
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL || '';
@@ -18,11 +27,6 @@ const RESET_INTERVAL_HOURS = 14; // 14 hours
 export const qrService = {
   /**
    * Scans a QR code and performs a 5m proximity check.
-   * @param workerId The ID of the worker scanning the QR code.
-   * @param qrCodeValue The value of the QR code being scanned.
-   * @param scanLocation The GPS location of the worker at the time of scan.
-   * @returns The scanned QR code record if successful.
-   * @throws Error if worker is too far or QR code is invalid/expired.
    */
   async scanQRCode(
     workerId: number,
@@ -91,9 +95,6 @@ export const qrService = {
 
   /**
    * Creates a new QR point or reuses an existing one within 15m radius.
-   * @param userId The ID of the user creating the point.
-   * @param location The GPS location for the new point.
-   * @returns The created or reused QR code record.
    */
   async createQRCode(
     userId: number,
@@ -114,7 +115,7 @@ export const qrService = {
       throw new Error('Failed to check for nearby points.');
     }
 
-    if (existingPoints && existingPoints.length > 0) {
+    if (existingPoints && (existingPoints as any[]).length > 0) {
       // Reuse the closest existing point
       const closestPoint = existingPoints[0];
       console.log(`Reusing existing QR code: ${closestPoint.code_value}`);
@@ -145,7 +146,6 @@ export const qrService = {
 
   /**
    * Resets the status of QR codes to 'pending' if they haven't been scanned for 14 hours.
-   * This function should be called periodically (e.g., via a cron job).
    */
   async resetOldQRCodes() {
     const fourteenHoursAgo = new Date(Date.now() - RESET_INTERVAL_HOURS * 3600 * 1000).toISOString();
@@ -154,15 +154,16 @@ export const qrService = {
       .from('qr_codes')
       .update({ status: SWM_QR_CODE_STATUS.PENDING, scanned_at: null })
       .eq('status', SWM_QR_CODE_STATUS.SCANNED)
-      .lt('scanned_at', fourteenHoursAgo);
+      .lt('scanned_at', fourteenHoursAgo)
+      .select();
 
     if (error) {
       console.error('Error resetting old QR codes:', error);
       throw new Error('Failed to reset old QR codes.');
     }
 
-    console.log(`Reset ${data?.length || 0} QR codes to pending status.`);
+    const resetCount = data ? (data as any[]).length : 0;
+    console.log(`Reset ${resetCount} QR codes to pending status.`);
     return data;
   },
 };
-
