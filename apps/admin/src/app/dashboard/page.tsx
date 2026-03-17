@@ -5,9 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { supabaseAdmin } from '@/lib/supabase';
 import dynamic from 'next/dynamic';
 import { Loader2, MapPin, Activity } from 'lucide-react';
-import React from 'react'; // FIX: toast hata diya gaya hai yahan se
+import React from 'react';
 
-// FIX: Shared library ki jagah local interfaces use kar rahe hain taaki build pass ho jaye
 interface Ward {
   id: number;
   ward_number: string;
@@ -26,7 +25,6 @@ interface GPSPoint {
   speed: number;
 }
 
-// Dynamically import Leaflet components
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), {
   ssr: false,
 });
@@ -70,17 +68,21 @@ export default function DashboardPage() {
 
   // Fetch GPS Data
   const fetchGPSData = async () => {
-    if (wards.length === 0) return;
+    // Agar wards khali hain toh bhi loader hata do taaki dashboard dikhe
+    if (!wards || wards.length === 0) {
+      if (!wardsLoading) setIsMapReady(true);
+      return;
+    }
 
     try {
       const data = await Promise.all(
         wards.map(async (ward) => {
-          const trails = await supabaseAdmin.getGPSTrails();
+          const trails = await supabaseAdmin.getGPSTrails() || [];
           const wardTrails = trails.filter((t: any) => t.is_valid);
 
           let gpsPoints: GPSPoint[] = [];
           if (wardTrails.length > 0) {
-            gpsPoints = await supabaseAdmin.getGPSPoints(wardTrails[0].id);
+            gpsPoints = await supabaseAdmin.getGPSPoints(wardTrails[0].id) || [];
           }
 
           return {
@@ -92,9 +94,10 @@ export default function DashboardPage() {
       );
 
       setMiniMaps(data);
-      setIsMapReady(true);
+      setIsMapReady(true); // Data aane ke baad loader finish
     } catch (error) {
       console.error('Error fetching GPS data:', error);
+      setIsMapReady(true); // Error aane par bhi loader finish taaki screen na fase
     }
   };
 
@@ -102,7 +105,7 @@ export default function DashboardPage() {
     fetchGPSData();
     const interval = setInterval(fetchGPSData, 5000);
     return () => clearInterval(interval);
-  }, [wards]);
+  }, [wards, wardsLoading]); // wardsLoading add kiya taaki state track ho
 
   if (wardsLoading || !isMapReady) {
     return (
@@ -134,62 +137,68 @@ export default function DashboardPage() {
 
         {/* Mini-Maps Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-          {miniMaps.map((mapData) => (
-            <div
-              key={mapData.ward.id}
-              className="bg-white/80 backdrop-blur-sm rounded-3xl overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all border border-white/40 group"
-              onClick={() => setSelectedWard(mapData.ward)}
-            >
-              <div className="relative h-44 bg-gray-100">
-                <MapContainer
-                  {...({
-                    center: defaultCenter,
-                    zoom: 12,
-                    style: { height: '100%', width: '100%' },
-                    zoomControl: false,
-                    scrollWheelZoom: false,
-                  } as any)}
-                >
-                  <TileLayer
+          {miniMaps.length === 0 ? (
+            <div className="col-span-full p-12 text-center glass-card">
+              <p className="text-gray-500 font-bold">No active wards found in database.</p>
+            </div>
+          ) : (
+            miniMaps.map((mapData) => (
+              <div
+                key={mapData.ward.id}
+                className="bg-white/80 backdrop-blur-sm rounded-3xl overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all border border-white/40 group"
+                onClick={() => setSelectedWard(mapData.ward)}
+              >
+                <div className="relative h-44 bg-gray-100">
+                  <MapContainer
                     {...({
-                      url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                      attribution: '&copy; OSM'
+                      center: defaultCenter,
+                      zoom: 12,
+                      style: { height: '100%', width: '100%' },
+                      zoomControl: false,
+                      scrollWheelZoom: false,
                     } as any)}
-                  />
-
-                  {mapData.gpsPoints.length > 0 && (
-                    <Polyline
+                  >
+                    <TileLayer
                       {...({
-                        positions: mapData.gpsPoints
-                          .map((p) => {
-                            if (p.location && 'coordinates' in p.location) {
-                              const coords = p.location.coordinates;
-                              return [coords[1], coords[0]] as [number, number];
-                            }
-                            return null;
-                          })
-                          .filter(Boolean) as [number, number][],
-                        color: "#0ea5e9",
-                        weight: 3,
-                        opacity: 0.8
+                        url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                        attribution: '&copy; OSM'
                       } as any)}
                     />
-                  )}
-                </MapContainer>
-                <div className="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded-lg text-[10px] font-black text-sky-600 shadow-sm border border-sky-100 uppercase tracking-tighter">
-                  Ward {mapData.ward.ward_number}
-                </div>
-              </div>
 
-              <div className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
-                  <Activity className="w-3.5 h-3.5 text-green-500" />
-                  {mapData.gpsPoints.length} Points
+                    {mapData.gpsPoints.length > 0 && (
+                      <Polyline
+                        {...({
+                          positions: mapData.gpsPoints
+                            .map((p) => {
+                              if (p.location && 'coordinates' in p.location) {
+                                const coords = p.location.coordinates;
+                                return [coords[1], coords[0]] as [number, number];
+                              }
+                              return null;
+                            })
+                            .filter(Boolean) as [number, number][],
+                          color: "#0ea5e9",
+                          weight: 3,
+                          opacity: 0.8
+                        } as any)}
+                      />
+                    )}
+                  </MapContainer>
+                  <div className="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded-lg text-[10px] font-black text-sky-600 shadow-sm border border-sky-100 uppercase tracking-tighter">
+                    Ward {mapData.ward.ward_number}
+                  </div>
                 </div>
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+
+                <div className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
+                    <Activity className="w-3.5 h-3.5 text-green-500" />
+                    {mapData.gpsPoints.length} Points
+                  </div>
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
         {/* Detailed View */}
@@ -269,4 +278,4 @@ export default function DashboardPage() {
       </div>
     </div>
   );
-}
+                      }
