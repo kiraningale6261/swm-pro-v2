@@ -5,7 +5,7 @@
     "dev:worker": "pnpm -F @swm-pro/worker dev",
     "build": "pnpm -r build",
     "build:admin": "pnpm -F @swm-pro/admin build",
-    "build:api": "nest build api && cp -r dist/apps/api/* dist/ || echo 'Root build already flattened'",
+    "build:api": "nest build api && (cp -r dist/apps/api/* dist/ 2>/dev/null || echo 'Already flat')",
     "start:api": "node --experimental-specifier-resolution=node dist/main.js",
     "start": "node --experimental-specifier-resolution=node dist/main.js",
     "check": "pnpm -r check",
