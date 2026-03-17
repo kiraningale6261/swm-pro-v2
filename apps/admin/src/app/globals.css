@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glassmorphism Components */
+.glass-card {
+  @apply bg-white/70 backdrop-blur-md border border-white/20 rounded-lg shadow-lg;
+}
+
+.glass-card-sm {
+  @apply bg-white/60 backdrop-blur-sm border border-white/10 rounded-md shadow-md;
+}
+
+.glass-card-lg {
+  @apply bg-white/80 backdrop-blur-lg border border-white/30 rounded-xl shadow-2xl;
+}
+
+.glass-button {
+  @apply bg-white/50 hover:bg-white/70 backdrop-blur-md border border-white/20 rounded-lg px-4 py-2 transition-all duration-200;
+}
+
+.glass-input {
+  @apply bg-white/50 backdrop-blur-md border border-white/20 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent transition-all;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(14, 165, 233, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(14, 165, 233, 0.8);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-in-out;
+}
+
+/* Leaflet Map Styles */
+.leaflet-container {
+  @apply rounded-lg overflow-hidden;
+}
+
+.leaflet-popup-content-wrapper {
+  @apply bg-white/90 backdrop-blur-md rounded-lg;
+}
+
+.leaflet-popup-tip {
+  @apply bg-white/90;
+}
+
+/* Loading Skeleton */
+.skeleton {
+  @apply bg-gradient-to-r from-white/50 to-white/30 animate-pulse rounded-lg;
+}
+
+/* Badge Styles */
+.badge-active {
+  @apply bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.badge-inactive {
+  @apply bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.badge-pending {
+  @apply bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.badge-completed {
+  @apply bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium;
+}
+
+/* Form Styles */
+.form-group {
+  @apply flex flex-col gap-2;
+}
+
+.form-label {
+  @apply text-sm font-semibold text-gray-700;
+}
+
+.form-error {
+  @apply text-red-600 text-sm mt-1;
+}
+
+/* Table Styles */
+.table-container {
+  @apply overflow-x-auto;
+}
+
+.table-header {
+  @apply bg-white/50 backdrop-blur-sm border-b border-white/20;
+}
+
+.table-row {
+  @apply border-b border-white/10 hover:bg-white/30 transition-colors;
+}
+
+.table-cell {
+  @apply px-4 py-3 text-sm;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  @apply fixed inset-0 bg-black/30 backdrop-blur-sm z-40;
+}
+
+.modal-content {
+  @apply bg-white/95 backdrop-blur-lg border border-white/20 rounded-xl shadow-2xl;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .glass-card {
+    @apply rounded-md;
+  }
+
+  .glass-card-lg {
+    @apply rounded-lg;
+  }
+}
