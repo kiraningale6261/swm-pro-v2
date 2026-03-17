@@ -44,8 +44,6 @@ export default function CityMapPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [qrPoints, setQRPoints] = useState<QRPoint[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  
-  // FIX: selectedMarker variable ko hata diya gaya hai taaki build error na aaye
   const mapRef = useRef(null);
 
   // Fetch workers with latest GPS location
@@ -196,25 +194,25 @@ export default function CityMapPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-          <div className="bg-white/50 p-3 rounded-xl border border-white/50 text-center">
+          <div className="bg-white/50 p-3 rounded-xl border border-white/50 text-center shadow-sm">
             <p className="text-xl font-bold text-sky-600">{workers.length}</p>
             <p className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center justify-center gap-1 mt-1">
               <Users className="w-3 h-3" /> Workers
             </p>
           </div>
-          <div className="bg-white/50 p-3 rounded-xl border border-white/50 text-center">
+          <div className="bg-white/50 p-3 rounded-xl border border-white/50 text-center shadow-sm">
             <p className="text-xl font-bold text-blue-600">{vehicles.length}</p>
             <p className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center justify-center gap-1 mt-1">
               <Truck className="w-3 h-3" /> Vehicles
             </p>
           </div>
-          <div className="bg-white/50 p-3 rounded-xl border border-white/50 text-center">
+          <div className="bg-white/50 p-3 rounded-xl border border-white/50 text-center shadow-sm">
             <p className="text-xl font-bold text-green-600">{qrPoints.filter((p) => p.status === 'scanned').length}</p>
             <p className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center justify-center gap-1 mt-1">
               <MapPin className="w-3 h-3" /> Scanned
             </p>
           </div>
-          <div className="bg-white/50 p-3 rounded-xl border border-white/50 text-center">
+          <div className="bg-white/50 p-3 rounded-xl border border-white/50 text-center shadow-sm">
             <p className="text-xl font-bold text-red-600">{qrPoints.filter((p) => p.status === 'pending').length}</p>
             <p className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center justify-center gap-1 mt-1">
               <AlertCircle className="w-3 h-3" /> Pending
@@ -226,7 +224,15 @@ export default function CityMapPage() {
       {/* Map Container */}
       <div className="flex-1 m-6 mt-4 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/50 relative">
         {typeof window !== 'undefined' && (
-          <MapContainer center={defaultCenter} zoom={5} style={{ height: '100%', width: '100%' }} ref={mapRef}>
+          /* FIX: center/zoom props bypass using as any to fix type mismatch */
+          <MapContainer 
+            {...({ 
+              center: defaultCenter, 
+              zoom: 5, 
+              style: { height: '100%', width: '100%' }, 
+              ref: mapRef 
+            } as any)}
+          >
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; OpenStreetMap'
@@ -300,11 +306,11 @@ export default function CityMapPage() {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm" />
-            <span className="text-gray-700">QR Done</span>
+            <span className="text-gray-700">QR Scanned</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm" />
-            <span className="text-gray-700">QR Wait</span>
+            <span className="text-gray-700">QR Pending</span>
           </div>
         </div>
       </div>
