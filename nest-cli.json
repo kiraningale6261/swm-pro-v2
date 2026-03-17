@@ -17,7 +17,7 @@
       "sourceRoot": "apps/api/src",
       "compilerOptions": {
         "tsConfigPath": "apps/api/tsconfig.json",
-        "outputPath": "dist"
+        "outDir": "dist" 
       }
     }
   }
