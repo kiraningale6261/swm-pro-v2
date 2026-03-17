@@ -5,8 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabaseAdmin } from '@/lib/supabase';
 import dynamic from 'next/dynamic';
 import { Loader2, MapPin, Activity } from 'lucide-react';
-import { toast } from 'sonner';
-import React from 'react';
+import React from 'react'; // FIX: toast hata diya gaya hai yahan se
 
 // FIX: Shared library ki jagah local interfaces use kar rahe hain taaki build pass ho jaye
 interface Ward {
