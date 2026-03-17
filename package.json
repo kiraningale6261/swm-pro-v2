@@ -1,16 +1,35 @@
-"scripts": {
+{
+  "name": "swm-pro-v2",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "workspaces": [
+    "apps/admin",
+    "apps/api",
+    "apps/worker",
+    "packages/shared",
+    "packages/db"
+  ],
+  "scripts": {
     "dev": "pnpm -r --parallel dev",
     "dev:admin": "pnpm -F @swm-pro/admin dev",
     "dev:api": "pnpm -F @swm-pro/api dev",
     "dev:worker": "pnpm -F @swm-pro/worker dev",
     "build": "pnpm -r build",
     "build:admin": "pnpm -F @swm-pro/admin build",
-    "build:api": "nest build api && (cp -r dist/apps/api/* dist/ 2>/dev/null || echo 'Already flat')",
+    "build:api": "nest build api && (cp -r dist/apps/api/* dist/ 2>/dev/null || echo 'Flat')",
     "start:api": "node --experimental-specifier-resolution=node dist/main.js",
-    "start": "node --experimental-specifier-resolution=node dist/main.js",
-    "check": "pnpm -r check",
-    "format": "prettier --write .",
-    "test": "pnpm -r test",
-    "db:push": "pnpm -F @swm-pro/db push",
-    "db:seed": "pnpm -F @swm-pro/db seed"
+    "start": "node --experimental-specifier-resolution=node dist/main.js"
   },
+  "dependencies": {
+    "@nestjs/common": "^10.3.0",
+    "@nestjs/core": "^10.3.0",
+    "@nestjs/platform-express": "^10.3.0",
+    "reflect-metadata": "^0.1.13",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.3.0",
+    "typescript": "^5.0.0"
+  }
+}
