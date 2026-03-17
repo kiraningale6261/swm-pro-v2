@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabaseAdmin } from '@/lib/supabase';
 import { Ward, GPSTrail, GPSPoint } from '@swm-pro/shared';
 import dynamic from 'next/dynamic';
 import { Loader2, MapPin, Activity } from 'lucide-react';
 import { toast } from 'sonner';
+import React from 'react';
 
 // Dynamically import Leaflet components
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), {
@@ -50,41 +51,38 @@ export default function DashboardPage() {
     },
   });
 
-  // Fetch GPS Trails for all wards
+  // Fetch GPS Data
+  const fetchGPSData = async () => {
+    if (wards.length === 0) return;
+
+    try {
+      const data = await Promise.all(
+        wards.map(async (ward) => {
+          const trails = await supabaseAdmin.getGPSTrails();
+          const wardTrails = trails.filter((t: GPSTrail) => t.is_valid);
+
+          let gpsPoints: GPSPoint[] = [];
+          if (wardTrails.length > 0) {
+            gpsPoints = await supabaseAdmin.getGPSPoints(wardTrails[0].id);
+          }
+
+          return {
+            ward,
+            gpsTrails: wardTrails,
+            gpsPoints,
+          };
+        })
+      );
+
+      setMiniMaps(data);
+      setIsMapReady(true);
+    } catch (error) {
+      console.error('Error fetching GPS data:', error);
+    }
+  };
+
   useEffect(() => {
-    const fetchGPSData = async () => {
-      if (wards.length === 0) return;
-
-      try {
-        const data = await Promise.all(
-          wards.map(async (ward) => {
-            const trails = await supabaseAdmin.getGPSTrails();
-            const wardTrails = trails.filter((t: GPSTrail) => t.is_valid);
-
-            let gpsPoints: GPSPoint[] = [];
-            if (wardTrails.length > 0) {
-              gpsPoints = await supabaseAdmin.getGPSPoints(wardTrails[0].id);
-            }
-
-            return {
-              ward,
-              gpsTrails: wardTrails,
-              gpsPoints,
-            };
-          })
-        );
-
-        setMiniMaps(data);
-        setIsMapReady(true);
-      } catch (error) {
-        console.error('Error fetching GPS data:', error);
-        toast.error('Failed to load GPS data');
-      }
-    };
-
     fetchGPSData();
-
-    // Poll for updates every 5 seconds
     const interval = setInterval(fetchGPSData, 5000);
     return () => clearInterval(interval);
   }, [wards]);
@@ -94,51 +92,61 @@ export default function DashboardPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-sky-500 mx-auto mb-4" />
-          <p className="text-gray-600">Loading dashboard...</p>
+          <p className="text-gray-600 font-bold">Initializing Command Center...</p>
         </div>
       </div>
     );
   }
 
+  const defaultCenter: [number, number] = [20.5937, 78.9629];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="glass-card-lg p-8 mb-8">
+        <div className="bg-white/70 backdrop-blur-md rounded-3xl shadow-xl p-8 mb-8 border border-white/20">
           <div className="flex items-center gap-3 mb-2">
-            <MapPin className="w-8 h-8 text-sky-600" />
-            <h1 className="text-3xl font-bold text-gray-800">Live Dashboard</h1>
+            <div className="bg-sky-500 p-2 rounded-xl shadow-lg">
+              <MapPin className="w-8 h-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">Live Dashboard</h1>
+              <p className="text-gray-500 font-medium tracking-wide">Monitoring 10 Active Wards</p>
+            </div>
           </div>
-          <p className="text-gray-600">Real-time monitoring of 10 wards with live GPS trails</p>
         </div>
 
         {/* Mini-Maps Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          {miniMaps.map((mapData, idx) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+          {miniMaps.map((mapData) => (
             <div
               key={mapData.ward.id}
-              className="glass-card overflow-hidden cursor-pointer hover:shadow-xl transition-all group"
+              className="bg-white/80 backdrop-blur-sm rounded-3xl overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all border border-white/40 group"
               onClick={() => setSelectedWard(mapData.ward)}
             >
               {/* Map Container */}
-              <div className="relative h-48 bg-white/50">
-                {isMapReady && (
-                  <MapContainer
-                    center={[20.5937, 78.9629]}
-                    zoom={13}
-                    style={{ height: '100%', width: '100%' }}
-                    zoomControl={false}
-                    scrollWheelZoom={false}
-                  >
-                    <TileLayer
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      attribution='&copy; OpenStreetMap contributors'
-                    />
+              <div className="relative h-44 bg-gray-100">
+                <MapContainer
+                  {...({
+                    center: defaultCenter,
+                    zoom: 12,
+                    style: { height: '100%', width: '100%' },
+                    zoomControl: false,
+                    scrollWheelZoom: false,
+                  } as any)}
+                >
+                  <TileLayer
+                    {...({
+                      url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                      attribution: '&copy; OSM'
+                    } as any)}
+                  />
 
-                    {/* GPS Trails */}
-                    {mapData.gpsPoints.length > 0 && (
-                      <Polyline
-                        positions={mapData.gpsPoints
+                  {/* GPS Trails */}
+                  {mapData.gpsPoints.length > 0 && (
+                    <Polyline
+                      {...({
+                        positions: mapData.gpsPoints
                           .map((p) => {
                             if (p.location && 'coordinates' in p.location) {
                               const coords = p.location.coordinates;
@@ -146,43 +154,27 @@ export default function DashboardPage() {
                             }
                             return null;
                           })
-                          .filter(Boolean) as [number, number][]}
-                        color="#0ea5e9"
-                        weight={2}
-                        opacity={0.7}
-                      />
-                    )}
-
-                    {/* Current Location Marker */}
-                    {mapData.gpsPoints.length > 0 && (
-                      <Marker
-                        position={
-                          (() => {
-                            const lastPoint = mapData.gpsPoints[mapData.gpsPoints.length - 1];
-                            if (lastPoint.location && 'coordinates' in lastPoint.location) {
-                              const coords = lastPoint.location.coordinates;
-                              return [coords[1], coords[0]] as [number, number];
-                            }
-                            return [20.5937, 78.9629];
-                          })()
-                        }
-                      >
-                        <Popup>Ward {mapData.ward.ward_number}</Popup>
-                      </Marker>
-                    )}
-                  </MapContainer>
-                )}
+                          .filter(Boolean) as [number, number][],
+                        color: "#0ea5e9",
+                        weight: 3,
+                        opacity: 0.8
+                      } as any)}
+                    />
+                  )}
+                </MapContainer>
+                <div className="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded-lg text-[10px] font-black text-sky-600 shadow-sm border border-sky-100 uppercase tracking-tighter">
+                  Ward {mapData.ward.ward_number}
+                </div>
               </div>
 
               {/* Ward Info */}
-              <div className="p-4 border-t border-white/20">
-                <h3 className="font-semibold text-gray-800 mb-1">Ward {mapData.ward.ward_number}</h3>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Activity className="w-4 h-4" />
-                  <span>{mapData.gpsPoints.length} GPS points</span>
-                </div>
-                <div className="mt-3 text-xs text-gray-500">
-                  {mapData.ward.area_sq_km ? `${mapData.ward.area_sq_km} sq km` : 'Area unknown'}
+              <div className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
+                    <Activity className="w-3.5 h-3.5 text-green-500" />
+                    {mapData.gpsPoints.length} Points
+                  </div>
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                 </div>
               </div>
             </div>
@@ -191,96 +183,80 @@ export default function DashboardPage() {
 
         {/* Detailed View */}
         {selectedWard && (
-          <div className="glass-card-lg p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">Ward {selectedWard.ward_number} - Detailed View</h2>
+          <div className="bg-white/80 backdrop-blur-md rounded-[2.5rem] p-8 shadow-2xl border border-white/40 animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h2 className="text-2xl font-black text-gray-800 tracking-tight">Ward {selectedWard.ward_number} Details</h2>
+                <div className="h-1.5 w-20 bg-sky-500 rounded-full mt-1" />
+              </div>
               <button
                 onClick={() => setSelectedWard(null)}
-                className="text-gray-600 hover:text-gray-800 transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 transition-all font-bold"
               >
                 ✕
               </button>
             </div>
 
             {/* Full Map */}
-            <div className="h-96 rounded-lg overflow-hidden mb-6">
-              {isMapReady && (
-                <MapContainer
-                  center={[20.5937, 78.9629]}
-                  zoom={14}
-                  style={{ height: '100%', width: '100%' }}
-                >
-                  <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; OpenStreetMap contributors'
+            <div className="h-[500px] rounded-3xl overflow-hidden mb-8 border-4 border-white/50 shadow-inner">
+              <MapContainer
+                {...({
+                  center: defaultCenter,
+                  zoom: 14,
+                  style: { height: '100%', width: '100%' }
+                } as any)}
+              >
+                <TileLayer
+                  {...({
+                    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                    attribution: '&copy; OpenStreetMap'
+                  } as any)}
+                />
+
+                {/* Trail Line */}
+                {miniMaps.find((m) => m.ward.id === selectedWard.id)?.gpsPoints.length! > 1 && (
+                  <Polyline
+                    {...({
+                      positions: miniMaps
+                        .find((m) => m.ward.id === selectedWard.id)
+                        ?.gpsPoints.map((p) => {
+                          if (p.location && 'coordinates' in p.location) {
+                            const coords = p.location.coordinates;
+                            return [coords[1], coords[0]] as [number, number];
+                          }
+                          return null;
+                        })
+                        .filter(Boolean) as [number, number][],
+                      color: "#0ea5e9",
+                      weight: 4,
+                      opacity: 0.9
+                    } as any)}
                   />
-
-                  {/* GPS Trails */}
-                  {miniMaps
-                    .find((m) => m.ward.id === selectedWard.id)
-                    ?.gpsPoints.map((point, idx) => {
-                      if (point.location && 'coordinates' in point.location) {
-                        const coords = point.location.coordinates;
-                        return (
-                          <Marker key={idx} position={[coords[1], coords[0]]}>
-                            <Popup>
-                              <div className="text-sm">
-                                <p className="font-semibold">GPS Point {idx + 1}</p>
-                                <p>Accuracy: {point.accuracy}m</p>
-                                <p>Speed: {point.speed || 0} m/s</p>
-                              </div>
-                            </Popup>
-                          </Marker>
-                        );
-                      }
-                      return null;
-                    })}
-
-                  {/* Trail Line */}
-                  {miniMaps.find((m) => m.ward.id === selectedWard.id)?.gpsPoints.length ?? 0 > 1 && (
-                    <Polyline
-                      positions={
-                        miniMaps
-                          .find((m) => m.ward.id === selectedWard.id)
-                          ?.gpsPoints.map((p) => {
-                            if (p.location && 'coordinates' in p.location) {
-                              const coords = p.location.coordinates;
-                              return [coords[1], coords[0]] as [number, number];
-                            }
-                            return null;
-                          })
-                          .filter(Boolean) as [number, number][]
-                      }
-                      color="#0ea5e9"
-                      weight={3}
-                      opacity={0.8}
-                    />
-                  )}
-                </MapContainer>
-              )}
+                )}
+              </MapContainer>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="glass-card p-4 text-center">
-                <p className="text-2xl font-bold text-sky-600">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="bg-white/50 p-6 rounded-3xl border border-white/50 text-center shadow-sm">
+                <p className="text-3xl font-black text-sky-600">
                   {miniMaps.find((m) => m.ward.id === selectedWard.id)?.gpsPoints.length || 0}
                 </p>
-                <p className="text-sm text-gray-600 mt-1">GPS Points</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-2">GPS Nodes</p>
               </div>
-              <div className="glass-card p-4 text-center">
-                <p className="text-2xl font-bold text-green-600">
+              <div className="bg-white/50 p-6 rounded-3xl border border-white/50 text-center shadow-sm">
+                <p className="text-3xl font-black text-green-600">
                   {miniMaps.find((m) => m.ward.id === selectedWard.id)?.gpsTrails.length || 0}
                 </p>
-                <p className="text-sm text-gray-600 mt-1">Active Trails</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-2">Active Trails</p>
               </div>
-              <div className="glass-card p-4 text-center">
-                <p className="text-2xl font-bold text-blue-600">{selectedWard.area_sq_km || '--'}</p>
-                <p className="text-sm text-gray-600 mt-1">Area (sq km)</p>
+              <div className="bg-white/50 p-6 rounded-3xl border border-white/50 text-center shadow-sm">
+                <p className="text-3xl font-black text-blue-600">{selectedWard.area_sq_km || '--'}</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-2">Area Km²</p>
               </div>
-              <div className="glass-card p-4 text-center">
-                <p className="text-2xl font-bold text-purple-600">Live</p>
-                <p className="text-sm text-gray-600 mt-1">Status</p>
+              <div className="bg-white/50 p-6 rounded-3xl border border-white/50 text-center shadow-sm">
+                <p className="text-3xl font-black text-emerald-500 animate-pulse">LIVE</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-2">Tracking</p>
               </div>
             </div>
           </div>
