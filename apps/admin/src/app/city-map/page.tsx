@@ -44,24 +44,23 @@ export default function CityMapPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [qrPoints, setQRPoints] = useState<QRPoint[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [selectedMarker, setSelectedMarker] = useState<{ type: string; id: number } | null>(null);
+  
+  // FIX: selectedMarker variable ko hata diya gaya hai taaki build error na aaye
   const mapRef = useRef(null);
 
   // Fetch workers with latest GPS location
-  const { data: workersData = [], isLoading: workersLoading } = useQuery({
+  const { data: workersData = [] } = useQuery({
     queryKey: ['workers-map'],
     queryFn: async () => {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select(
-            `
+          .select(`
             id,
             name,
             mobile,
             gps_points(latitude, longitude, created_at)
-          `
-          )
+          `)
           .eq('role', 'worker')
           .order('created_at', { foreignTable: 'gps_points', ascending: false });
 
@@ -86,19 +85,17 @@ export default function CityMapPage() {
   });
 
   // Fetch vehicles with latest GPS location
-  const { data: vehiclesData = [], isLoading: vehiclesLoading } = useQuery({
+  const { data: vehiclesData = [] } = useQuery({
     queryKey: ['vehicles-map'],
     queryFn: async () => {
       try {
         const { data, error } = await supabase
           .from('vehicles')
-          .select(
-            `
+          .select(`
             id,
             registration,
             gps_points(latitude, longitude, created_at)
-          `
-          )
+          `)
           .order('created_at', { foreignTable: 'gps_points', ascending: false });
 
         if (error) throw error;
@@ -121,7 +118,7 @@ export default function CityMapPage() {
   });
 
   // Fetch QR points
-  const { data: qrPointsData = [], isLoading: qrPointsLoading } = useQuery({
+  const { data: qrPointsData = [] } = useQuery({
     queryKey: ['qr-points-map'],
     queryFn: async () => {
       try {
@@ -138,7 +135,7 @@ export default function CityMapPage() {
             code_value: point.code_value,
             latitude: point.location?.coordinates?.[1] || 0,
             longitude: point.location?.coordinates?.[0] || 0,
-            status: point.status,
+            status: point.status || 'pending',
             created_at: point.created_at,
           }))
           .filter((p) => p.latitude !== 0 && p.longitude !== 0);
@@ -172,54 +169,54 @@ export default function CityMapPage() {
   return (
     <div className="h-screen w-full flex flex-col bg-gradient-to-br from-sky-50 to-blue-50">
       {/* Header */}
-      <div className="glass-card-lg p-4 md:p-6 m-4 md:m-6 mb-0">
+      <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-xl p-6 m-6 mb-0 border border-white/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <MapPin className="w-6 h-6 text-sky-600" />
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-800">City Command Center</h1>
-              <p className="text-sm text-gray-600">Real-time GPS tracking and QR point management</p>
+              <h1 className="text-2xl font-bold text-gray-800">City Command Center</h1>
+              <p className="text-sm text-gray-600">GPS Live Tracking & QR Points</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 cursor-pointer">
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer bg-white/50 px-3 py-1.5 rounded-lg border border-sky-100">
               <input
                 type="checkbox"
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="w-4 h-4 rounded"
+                className="w-4 h-4 rounded text-sky-500"
               />
-              <span className="text-sm text-gray-700">Live</span>
+              <span className="text-sm font-semibold text-gray-700">Auto-Sync</span>
             </label>
-            <button className="glass-card p-2 hover:bg-white/40 transition-all">
-              <RefreshCw className="w-5 h-5 text-sky-600" />
+            <button className="p-2 bg-sky-500 rounded-lg hover:bg-sky-600 transition-all shadow-lg shadow-sky-100">
+              <RefreshCw className="w-5 h-5 text-white" />
             </button>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-          <div className="glass-card p-3 text-center">
-            <p className="text-lg font-bold text-sky-600">{workers.length}</p>
-            <p className="text-xs text-gray-600 flex items-center justify-center gap-1 mt-1">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+          <div className="bg-white/50 p-3 rounded-xl border border-white/50 text-center">
+            <p className="text-xl font-bold text-sky-600">{workers.length}</p>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center justify-center gap-1 mt-1">
               <Users className="w-3 h-3" /> Workers
             </p>
           </div>
-          <div className="glass-card p-3 text-center">
-            <p className="text-lg font-bold text-blue-600">{vehicles.length}</p>
-            <p className="text-xs text-gray-600 flex items-center justify-center gap-1 mt-1">
+          <div className="bg-white/50 p-3 rounded-xl border border-white/50 text-center">
+            <p className="text-xl font-bold text-blue-600">{vehicles.length}</p>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center justify-center gap-1 mt-1">
               <Truck className="w-3 h-3" /> Vehicles
             </p>
           </div>
-          <div className="glass-card p-3 text-center">
-            <p className="text-lg font-bold text-green-600">{qrPoints.filter((p) => p.status === 'scanned').length}</p>
-            <p className="text-xs text-gray-600 flex items-center justify-center gap-1 mt-1">
+          <div className="bg-white/50 p-3 rounded-xl border border-white/50 text-center">
+            <p className="text-xl font-bold text-green-600">{qrPoints.filter((p) => p.status === 'scanned').length}</p>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center justify-center gap-1 mt-1">
               <MapPin className="w-3 h-3" /> Scanned
             </p>
           </div>
-          <div className="glass-card p-3 text-center">
-            <p className="text-lg font-bold text-red-600">{qrPoints.filter((p) => p.status === 'pending').length}</p>
-            <p className="text-xs text-gray-600 flex items-center justify-center gap-1 mt-1">
+          <div className="bg-white/50 p-3 rounded-xl border border-white/50 text-center">
+            <p className="text-xl font-bold text-red-600">{qrPoints.filter((p) => p.status === 'pending').length}</p>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center justify-center gap-1 mt-1">
               <AlertCircle className="w-3 h-3" /> Pending
             </p>
           </div>
@@ -227,28 +224,22 @@ export default function CityMapPage() {
       </div>
 
       {/* Map Container */}
-      <div className="flex-1 m-4 md:m-6 mt-2 rounded-lg overflow-hidden glass-card">
+      <div className="flex-1 m-6 mt-4 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/50 relative">
         {typeof window !== 'undefined' && (
           <MapContainer center={defaultCenter} zoom={5} style={{ height: '100%', width: '100%' }} ref={mapRef}>
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              attribution='&copy; OpenStreetMap'
             />
 
             {/* Worker Markers */}
             {workers.map((worker) => (
-              <Marker
-                key={`worker-${worker.id}`}
-                position={[worker.latitude, worker.longitude]}
-                eventHandlers={{
-                  click: () => setSelectedMarker({ type: 'worker', id: worker.id }),
-                }}
-              >
+              <Marker key={`worker-${worker.id}`} position={[worker.latitude, worker.longitude]}>
                 <Popup>
-                  <div className="text-sm">
+                  <div className="p-1">
                     <p className="font-bold text-gray-800">{worker.name}</p>
-                    <p className="text-gray-600">{worker.mobile}</p>
-                    <p className="text-xs text-gray-500 mt-1">Last: {formatTime(worker.last_update)}</p>
+                    <p className="text-xs text-gray-500">{worker.mobile}</p>
+                    <p className="text-[10px] text-sky-600 font-bold mt-2">Active: {formatTime(worker.last_update)}</p>
                   </div>
                 </Popup>
               </Marker>
@@ -256,17 +247,11 @@ export default function CityMapPage() {
 
             {/* Vehicle Markers */}
             {vehicles.map((vehicle) => (
-              <Marker
-                key={`vehicle-${vehicle.id}`}
-                position={[vehicle.latitude, vehicle.longitude]}
-                eventHandlers={{
-                  click: () => setSelectedMarker({ type: 'vehicle', id: vehicle.id }),
-                }}
-              >
+              <Marker key={`vehicle-${vehicle.id}`} position={[vehicle.latitude, vehicle.longitude]}>
                 <Popup>
-                  <div className="text-sm">
+                  <div className="p-1">
                     <p className="font-bold text-gray-800">{vehicle.registration}</p>
-                    <p className="text-xs text-gray-500 mt-1">Last: {formatTime(vehicle.last_update)}</p>
+                    <p className="text-[10px] text-blue-600 font-bold mt-1">GPS: {formatTime(vehicle.last_update)}</p>
                   </div>
                 </Popup>
               </Marker>
@@ -275,35 +260,24 @@ export default function CityMapPage() {
             {/* QR Point Markers */}
             {qrPoints.map((point) => (
               <React.Fragment key={`qr-${point.id}`}>
-                {/* 5m Proximity Circle */}
                 <Circle
                   center={[point.latitude, point.longitude]}
                   radius={5}
                   pathOptions={{
                     color: point.status === 'scanned' ? '#22c55e' : '#ef4444',
                     fillColor: point.status === 'scanned' ? '#22c55e' : '#ef4444',
-                    fillOpacity: 0.1,
+                    fillOpacity: 0.2,
                     weight: 1,
                   }}
                 />
-
-                {/* QR Point Marker */}
-                <Marker
-                  position={[point.latitude, point.longitude]}
-                  eventHandlers={{
-                    click: () => setSelectedMarker({ type: 'qr', id: point.id }),
-                  }}
-                >
+                <Marker position={[point.latitude, point.longitude]}>
                   <Popup>
-                    <div className="text-sm">
-                      <p className="font-bold text-gray-800">{point.code_value}</p>
-                      <p className={`text-xs font-semibold ${point.status === 'scanned' ? 'text-green-600' : 'text-red-600'}`}>
-                        Status: {point.status.toUpperCase()}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">Created: {formatTime(point.created_at)}</p>
-                      <p className="text-xs text-gray-500">
-                        {point.latitude.toFixed(4)}, {point.longitude.toFixed(4)}
-                      </p>
+                    <div className="p-1">
+                      <p className="font-bold text-gray-800 text-xs">{point.code_value}</p>
+                      <div className={`mt-2 text-[10px] font-bold py-1 px-2 rounded-full inline-block ${point.status === 'scanned' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {point.status.toUpperCase()}
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-2 italic">{formatTime(point.created_at)}</p>
                     </div>
                   </Popup>
                 </Marker>
@@ -314,23 +288,23 @@ export default function CityMapPage() {
       </div>
 
       {/* Legend */}
-      <div className="glass-card-lg p-4 md:p-6 m-4 md:m-6 mt-0">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+      <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-lg p-4 m-6 mt-0 border border-white/20">
+        <div className="flex flex-wrap items-center justify-center gap-6 text-[10px] font-bold uppercase tracking-widest">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-sky-500" />
-            <span className="text-gray-700">Worker Location</span>
+            <div className="w-2.5 h-2.5 rounded-full bg-sky-500 shadow-sm" />
+            <span className="text-gray-600">Worker</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500" />
-            <span className="text-gray-700">Vehicle Location</span>
+            <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm" />
+            <span className="text-gray-700">Vehicle</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500" />
-            <span className="text-gray-700">QR Scanned</span>
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm" />
+            <span className="text-gray-700">QR Done</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-500" />
-            <span className="text-gray-700">QR Pending</span>
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm" />
+            <span className="text-gray-700">QR Wait</span>
           </div>
         </div>
       </div>
