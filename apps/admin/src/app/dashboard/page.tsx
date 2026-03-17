@@ -3,11 +3,29 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabaseAdmin } from '@/lib/supabase';
-import { Ward, GPSTrail, GPSPoint } from '@swm-pro/shared';
 import dynamic from 'next/dynamic';
 import { Loader2, MapPin, Activity } from 'lucide-react';
 import { toast } from 'sonner';
 import React from 'react';
+
+// FIX: Shared library ki jagah local interfaces use kar rahe hain taaki build pass ho jaye
+interface Ward {
+  id: number;
+  ward_number: string;
+  area_sq_km?: number;
+}
+
+interface GPSTrail {
+  id: number;
+  is_valid: boolean;
+}
+
+interface GPSPoint {
+  id: number;
+  location: any;
+  accuracy: number;
+  speed: number;
+}
 
 // Dynamically import Leaflet components
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), {
@@ -43,7 +61,7 @@ export default function DashboardPage() {
     queryFn: async () => {
       try {
         const data = await supabaseAdmin.getWards();
-        return (data as Ward[]).slice(0, 10); // Limit to 10 wards
+        return (data as Ward[]).slice(0, 10);
       } catch (error) {
         console.error('Error fetching wards:', error);
         throw error;
@@ -59,7 +77,7 @@ export default function DashboardPage() {
       const data = await Promise.all(
         wards.map(async (ward) => {
           const trails = await supabaseAdmin.getGPSTrails();
-          const wardTrails = trails.filter((t: GPSTrail) => t.is_valid);
+          const wardTrails = trails.filter((t: any) => t.is_valid);
 
           let gpsPoints: GPSPoint[] = [];
           if (wardTrails.length > 0) {
@@ -92,7 +110,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-sky-500 mx-auto mb-4" />
-          <p className="text-gray-600 font-bold">Initializing Command Center...</p>
+          <p className="text-gray-600 font-bold">Synchronizing Fleet Data...</p>
         </div>
       </div>
     );
@@ -103,7 +121,6 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="bg-white/70 backdrop-blur-md rounded-3xl shadow-xl p-8 mb-8 border border-white/20">
           <div className="flex items-center gap-3 mb-2">
             <div className="bg-sky-500 p-2 rounded-xl shadow-lg">
@@ -111,7 +128,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-800">Live Dashboard</h1>
-              <p className="text-gray-500 font-medium tracking-wide">Monitoring 10 Active Wards</p>
+              <p className="text-gray-500 font-medium tracking-wide">Command Center: Monitoring Active Wards</p>
             </div>
           </div>
         </div>
@@ -124,7 +141,6 @@ export default function DashboardPage() {
               className="bg-white/80 backdrop-blur-sm rounded-3xl overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all border border-white/40 group"
               onClick={() => setSelectedWard(mapData.ward)}
             >
-              {/* Map Container */}
               <div className="relative h-44 bg-gray-100">
                 <MapContainer
                   {...({
@@ -142,7 +158,6 @@ export default function DashboardPage() {
                     } as any)}
                   />
 
-                  {/* GPS Trails */}
                   {mapData.gpsPoints.length > 0 && (
                     <Polyline
                       {...({
@@ -167,15 +182,12 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Ward Info */}
-              <div className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
-                    <Activity className="w-3.5 h-3.5 text-green-500" />
-                    {mapData.gpsPoints.length} Points
-                  </div>
-                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <div className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
+                  <Activity className="w-3.5 h-3.5 text-green-500" />
+                  {mapData.gpsPoints.length} Points
                 </div>
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
               </div>
             </div>
           ))}
@@ -185,10 +197,7 @@ export default function DashboardPage() {
         {selectedWard && (
           <div className="bg-white/80 backdrop-blur-md rounded-[2.5rem] p-8 shadow-2xl border border-white/40 animate-in fade-in zoom-in duration-300">
             <div className="flex justify-between items-center mb-8">
-              <div>
-                <h2 className="text-2xl font-black text-gray-800 tracking-tight">Ward {selectedWard.ward_number} Details</h2>
-                <div className="h-1.5 w-20 bg-sky-500 rounded-full mt-1" />
-              </div>
+              <h2 className="text-2xl font-black text-gray-800 tracking-tight">Ward {selectedWard.ward_number} Analysis</h2>
               <button
                 onClick={() => setSelectedWard(null)}
                 className="w-10 h-10 flex items-center justify-center rounded-2xl bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 transition-all font-bold"
@@ -197,7 +206,6 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            {/* Full Map */}
             <div className="h-[500px] rounded-3xl overflow-hidden mb-8 border-4 border-white/50 shadow-inner">
               <MapContainer
                 {...({
@@ -213,7 +221,6 @@ export default function DashboardPage() {
                   } as any)}
                 />
 
-                {/* Trail Line */}
                 {miniMaps.find((m) => m.ward.id === selectedWard.id)?.gpsPoints.length! > 1 && (
                   <Polyline
                     {...({
@@ -236,27 +243,26 @@ export default function DashboardPage() {
               </MapContainer>
             </div>
 
-            {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="bg-white/50 p-6 rounded-3xl border border-white/50 text-center shadow-sm">
                 <p className="text-3xl font-black text-sky-600">
                   {miniMaps.find((m) => m.ward.id === selectedWard.id)?.gpsPoints.length || 0}
                 </p>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-2">GPS Nodes</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-2">Data Nodes</p>
               </div>
               <div className="bg-white/50 p-6 rounded-3xl border border-white/50 text-center shadow-sm">
                 <p className="text-3xl font-black text-green-600">
                   {miniMaps.find((m) => m.ward.id === selectedWard.id)?.gpsTrails.length || 0}
                 </p>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-2">Active Trails</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-2">Trails</p>
               </div>
               <div className="bg-white/50 p-6 rounded-3xl border border-white/50 text-center shadow-sm">
                 <p className="text-3xl font-black text-blue-600">{selectedWard.area_sq_km || '--'}</p>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-2">Area Km²</p>
               </div>
               <div className="bg-white/50 p-6 rounded-3xl border border-white/50 text-center shadow-sm">
-                <p className="text-3xl font-black text-emerald-500 animate-pulse">LIVE</p>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-2">Tracking</p>
+                <p className="text-3xl font-black text-emerald-500">LIVE</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-2">Active</p>
               </div>
             </div>
           </div>
