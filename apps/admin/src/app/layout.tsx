@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import Providers from './providers'; // 1. Providers ko import kiya
 
 export const metadata: Metadata = {
   title: 'SWM PRO Admin Dashboard',
@@ -19,7 +20,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50">
         <div className="min-h-screen">
-          {children}
+          {/* 2. Poore children ko Providers ke andar wrap kiya */}
+          <Providers>
+            {children}
+          </Providers>
         </div>
       </body>
     </html>
