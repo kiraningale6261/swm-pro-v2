@@ -232,7 +232,6 @@ export default function CityMapPage() {
               ref: mapRef 
             } as any)}
           >
-            {/* FIX: TileLayer props bypass using as any */}
             <TileLayer
               {...({
                 url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -268,15 +267,18 @@ export default function CityMapPage() {
             {/* QR Point Markers */}
             {qrPoints.map((point) => (
               <React.Fragment key={`qr-${point.id}`}>
+                {/* FIX: Circle props bypass using as any */}
                 <Circle
-                  center={[point.latitude, point.longitude]}
-                  radius={5}
-                  pathOptions={{
-                    color: point.status === 'scanned' ? '#22c55e' : '#ef4444',
-                    fillColor: point.status === 'scanned' ? '#22c55e' : '#ef4444',
-                    fillOpacity: 0.2,
-                    weight: 1,
-                  }}
+                  {...({
+                    center: [point.latitude, point.longitude],
+                    radius: 5,
+                    pathOptions: {
+                      color: point.status === 'scanned' ? '#22c55e' : '#ef4444',
+                      fillColor: point.status === 'scanned' ? '#22c55e' : '#ef4444',
+                      fillOpacity: 0.2,
+                      weight: 1,
+                    }
+                  } as any)}
                 />
                 <Marker position={[point.latitude, point.longitude]}>
                   <Popup>
@@ -308,14 +310,14 @@ export default function CityMapPage() {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm" />
-            <span className="text-gray-700">QR Done</span>
+            <span className="text-gray-700">QR Scanned</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm" />
-            <span className="text-gray-700">QR Wait</span>
+            <span className="text-gray-700">QR Pending</span>
           </div>
         </div>
       </div>
     </div>
   );
-            }
+                                                               }
