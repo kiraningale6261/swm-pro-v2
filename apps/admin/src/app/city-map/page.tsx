@@ -224,7 +224,6 @@ export default function CityMapPage() {
       {/* Map Container */}
       <div className="flex-1 m-6 mt-4 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/50 relative">
         {typeof window !== 'undefined' && (
-          /* FIX: center/zoom props bypass using as any to fix type mismatch */
           <MapContainer 
             {...({ 
               center: defaultCenter, 
@@ -233,9 +232,12 @@ export default function CityMapPage() {
               ref: mapRef 
             } as any)}
           >
+            {/* FIX: TileLayer props bypass using as any */}
             <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; OpenStreetMap'
+              {...({
+                url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                attribution: '&copy; OpenStreetMap'
+              } as any)}
             />
 
             {/* Worker Markers */}
@@ -306,14 +308,14 @@ export default function CityMapPage() {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm" />
-            <span className="text-gray-700">QR Scanned</span>
+            <span className="text-gray-700">QR Done</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm" />
-            <span className="text-gray-700">QR Pending</span>
+            <span className="text-gray-700">QR Wait</span>
           </div>
         </div>
       </div>
     </div>
   );
-}
+            }
