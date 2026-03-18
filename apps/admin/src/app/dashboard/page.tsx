@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import { Loader2, MapPin, Activity, Search, Navigation, Layers } from 'lucide-react';
 import React from 'react';
 
-// --- Interfaces (Bilkul wahi jo pehle thi, koi badlav nahi) ---
+// --- Interfaces (Bilkul wahi jo README mein hain) ---
 interface Ward {
   id: number;
   ward_number: string;
@@ -27,14 +27,14 @@ interface GPSPoint {
   speed: number;
 }
 
-// --- Next.js Safety: SSR False taaki browser crash na ho ---
+// --- Next.js SSR Fix: Map ko sirf browser mein load karne ke liye ---
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false });
 const Polyline = dynamic(() => import('react-leaflet').then((mod) => mod.Polyline), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false });
 const useMap = dynamic(() => import('react-leaflet').then((mod) => ({ default: mod.useMap })), { ssr: false });
 
-// --- Map Controller: Google Maps style Fly-To focus ---
+// --- Map Controller: Google Maps style focus control ---
 function ChangeView({ center }: { center: [number, number] }) {
   const map = (useMap as any)();
   useEffect(() => {
@@ -52,10 +52,9 @@ interface MiniMapData {
 }
 
 export default function DashboardPage() {
-  // --- Hydration Fix: Application Error ko "Jad se" khatam karne ke liye ---
+  // --- Hydration Fix: Client-side exception ko jad se khatam karne ke liye ---
   const [hasMounted, setHasMounted] = useState(false);
   const [miniMaps, setMiniMaps] = useState<MiniMapData[]>([]);
-  const [selectedWard, setSelectedWard] = useState<Ward | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
   
   // Search & Auto-Divide States
@@ -64,12 +63,12 @@ export default function DashboardPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [autoWards, setAutoWards] = useState<Ward[]>([]);
 
-  // 1. Mount Check: Taaki client-side exception na aaye
+  // 1. Mount Check: Application error fix
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
-  // 2. Fetch Wards (Original Business Logic)
+  // 2. Fetch Wards (Business Logic)
   const { data: wards = [], isLoading: wardsLoading } = useQuery({
     queryKey: ['wards'],
     queryFn: async () => {
@@ -83,7 +82,7 @@ export default function DashboardPage() {
     },
   });
 
-  // 3. World Search (Nominatim API)
+  // 3. Search Functionality
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery) return;
@@ -97,7 +96,7 @@ export default function DashboardPage() {
     } catch (err) { console.error(err); } finally { setIsSearching(false); }
   };
 
-  // 4. Auto-Divide 10 Wards Logic (Business Automation)
+  // 4. Auto-Divide 10 Wards Logic
   const generateWards = () => {
     const newWards: Ward[] = [];
     const spread = 0.015;
@@ -114,7 +113,7 @@ export default function DashboardPage() {
     setIsMapReady(true);
   };
 
-  // 5. GPS Sync Logic (Original Business Logic)
+  // 5. GPS Real-time Polling (5s) as per README
   const fetchGPSData = async () => {
     if (!wards || wards.length === 0) {
       if (!wardsLoading) setIsMapReady(true);
@@ -139,11 +138,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchGPSData();
-    const interval = setInterval(fetchGPSData, 5000); // 5s Polling as per README
+    const interval = setInterval(fetchGPSData, 5000); 
     return () => clearInterval(interval);
   }, [wards]);
 
-  // Loader Guard
+  // SSR Guard: Application Error Prevention
   if (!hasMounted || wardsLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-sky-50">
@@ -156,7 +155,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* --- Header & Search Bar --- */}
+        {/* Search & Command Header */}
         <div className="bg-white/80 backdrop-blur-md rounded-[2rem] shadow-2xl p-6 border border-white/20">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
@@ -182,7 +181,7 @@ export default function DashboardPage() {
               </form>
               <button 
                 onClick={generateWards}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 rounded-2xl font-black text-xs flex items-center gap-2 shadow-xl shadow-emerald-100 transition-all"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 rounded-2xl font-black text-xs flex items-center gap-2 shadow-xl transition-all"
               >
                 <Layers className="w-4 h-4" /> DIVIDE 10 WARDS
               </button>
@@ -190,25 +189,23 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* --- MAIN GOOGLE MAP VIEW --- */}
+        {/* --- MAIN WORLD MAP --- */}
         <div className="bg-white rounded-[3rem] overflow-hidden shadow-2xl border-8 border-white h-[500px] relative z-0">
           <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OSM' />
             <ChangeView center={mapCenter} />
             
-            {/* Auto-Ward Markers on Main Map */}
             {autoWards.map(w => (
               <Marker key={w.id} position={w.center as any} />
             ))}
             
-            {/* GPS Trails on Main Map */}
             {miniMaps.map(m => m.gpsPoints.length > 0 && (
               <Polyline key={m.ward.id} positions={m.gpsPoints.map(p => [p.location.coordinates[1], p.location.coordinates[0]]) as any} color="#0ea5e9" weight={4} />
             ))}
           </MapContainer>
         </div>
 
-        {/* --- WARD STATUS CARDS --- */}
+        {/* --- WARD CARDS --- */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {miniMaps.length === 0 ? (
             <div className="col-span-full py-10 text-center bg-white/40 rounded-3xl border-2 border-dashed border-sky-100 font-bold text-gray-400 uppercase tracking-widest text-xs">Search and Divide to see fleet units</div>
