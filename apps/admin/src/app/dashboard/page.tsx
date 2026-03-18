@@ -1,117 +1,169 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabaseAdmin } from '@/lib/supabase';
 import dynamic from 'next/dynamic';
-import { Loader2, MapPin, Search, Layers, Activity } from 'lucide-react';
+import { Loader2, Search, Layers, Globe } from 'lucide-react';
 import React from 'react';
 
-// --- 1. Interfaces (README ke mutabik) ---
-interface Ward {
-  id: number;
-  ward_number: string;
-  center?: [number, number];
-}
-
-// --- 2. Map Component (Pure Client-Side) ---
+// --- Client-Only Map Components ---
 const LeafletMap = dynamic(() => import('react-leaflet').then((mod) => {
-  const { MapContainer, TileLayer, Marker, Polyline, useMap } = mod;
+  const { MapContainer, TileLayer, Polygon, Marker, useMap } = mod;
   
-  // Internal Controller for Fly-To
-  const MapController = ({ center }: { center: [number, number] }) => {
+  // Ye sensor map ko kisi bhi nayi city par 'Fly' karwa deta hai
+  const GlobalFlyController = ({ center }: { center: [number, number] }) => {
     const map = useMap();
-    useEffect(() => { if (center) map.flyTo(center, 14, { duration: 2 }); }, [center]);
+    useEffect(() => {
+      if (center) {
+        map.flyTo(center, 13, { animate: true, duration: 2.5 });
+      }
+    }, [center, map]);
     return null;
   };
 
-  return function Map({ center, wards, trails }: any) {
+  return function Map({ center, wards }: any) {
     return (
-      <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%' }}>
+      <MapContainer 
+        center={center} 
+        zoom={13} 
+        style={{ height: '100%', width: '100%' }}
+        scrollWheelZoom={true}
+      >
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        <MapController center={center} />
-        {wards.map((w: any) => w.center && <Marker key={w.id} position={w.center} />)}
-        {trails.map((m: any) => m.gpsPoints?.length > 0 && (
-          <Polyline key={m.ward.id} positions={m.gpsPoints.map((p: any) => [p.location.coordinates[1], p.location.coordinates[0]])} color="#0ea5e9" weight={4} />
+        <GlobalFlyController center={center} />
+        {wards.map((w: any) => (
+          <Polygon 
+            key={w.id} 
+            positions={w.bounds} 
+            pathOptions={{ color: '#0ea5e9', fillColor: '#38bdf8', fillOpacity: 0.3, weight: 2 }} 
+          />
         ))}
+        <Marker position={center} />
       </MapContainer>
     );
   };
-}), { 
-  ssr: false,
-  loading: () => <div className="h-full w-full bg-gray-50 flex items-center justify-center font-bold text-gray-400 uppercase">Map Loading...</div>
-});
+}), { ssr: false, loading: () => <div className="h-full w-full bg-gray-50 flex items-center justify-center font-black">SYNCING GLOBAL MAP...</div> });
 
 export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [mapCenter, setMapCenter] = useState<[number, number]>([16.7050, 74.2433]); 
-  const [miniMaps, setMiniMaps] = useState<any[]>([]);
-  const [autoWards, setAutoWards] = useState<Ward[]>([]);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([20.5937, 78.9629]); // Default India Center
+  const [autoWards, setAutoWards] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
-  // 3. Original Business Logic (Wards Fetching)
-  const { data: wards = [], isLoading: wardsLoading } = useQuery({
-    queryKey: ['wards'],
-    queryFn: async () => {
-      const data = await supabaseAdmin.getWards();
-      return (data as Ward[]).slice(0, 10);
-    },
-  });
-
-  const handleSearch = async (e: React.FormEvent) => {
+  // --- Global Search Logic (Any City in the World) ---
+  const handleGlobalSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery) return;
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${searchQuery}`);
-    const data = await res.json();
-    if (data && data.length > 0) setMapCenter([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
+    
+    setIsSearching(true);
+    try {
+      // Nominatim API: Duniya ki koi bhi location dhoondne ke liye
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`
+      );
+      const data = await response.json();
+      
+      if (data && data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        setMapCenter([lat, lon]); // Coordinate milte hi FlyController move karega
+      } else {
+        alert("Location not found! Please check the spelling.");
+      }
+    } catch (err) {
+      console.error("Search failed:", err);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
-  const generateWards = () => {
-    const newWards = Array.from({ length: 10 }, (_, i) => ({
-      id: Date.now() + i,
-      ward_number: `${i + 1}`,
-      center: [mapCenter[0] + (Math.random() - 0.5) * 0.015, mapCenter[1] + (Math.random() - 0.5) * 0.015] as [number, number]
-    }));
-    setAutoWards(newWards);
-    setMiniMaps(newWards.map(w => ({ ward: w, gpsPoints: [] })));
+  // --- 10 Equal Grid Division Logic ---
+  const generate10EqualWards = () => {
+    const wards = [];
+    const rows = 2; 
+    const cols = 5; 
+    const size = 0.012; // Standard size for city wards
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const id = r * cols + c + 1;
+        const offsetLat = (r - rows / 2) * size;
+        const offsetLng = (c - cols / 2) * size;
+
+        const startLat = mapCenter[0] + offsetLat;
+        const startLng = mapCenter[1] + offsetLng;
+
+        const bounds = [
+          [startLat, startLng],
+          [startLat + size, startLng],
+          [startLat + size, startLng + size],
+          [startLat, startLng + size],
+        ];
+
+        wards.push({ id, ward_number: id, bounds });
+      }
+    }
+    setAutoWards(wards);
   };
 
-  if (!mounted || wardsLoading) return (
-    <div className="h-screen flex items-center justify-center bg-sky-50">
-      <Loader2 className="animate-spin text-sky-500 w-12 h-12" />
-    </div>
-  );
+  if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8">
+    <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Search Header */}
-        <div className="bg-white rounded-[2rem] shadow-xl p-6 border border-gray-100 flex flex-col md:flex-row gap-4 items-center">
-          <div className="flex-1 relative w-full">
-            <Search className="absolute left-4 top-4 text-gray-400" />
-            <form onSubmit={handleSearch}>
-              <input type="text" placeholder="Search area..." className="w-full pl-12 p-4 bg-gray-50 rounded-2xl font-black outline-none" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-            </form>
+        
+        {/* --- Global Search & Command Center --- */}
+        <div className="bg-white rounded-[2.5rem] shadow-2xl p-6 border border-gray-100 flex flex-col gap-4">
+          <div className="flex items-center gap-3 mb-2 px-2">
+            <Globe className="text-sky-600 w-6 h-6 animate-pulse" />
+            <h1 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Global Command Center</h1>
           </div>
-          <button onClick={generateWards} className="bg-sky-600 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-2"><Layers className="w-5 h-5" /> DIVIDE 10 WARDS</button>
+          
+          <form onSubmit={handleGlobalSearch} className="relative flex gap-2">
+            <div className="relative flex-1 group">
+              <Search className="absolute left-4 top-4 text-gray-400 w-5 h-5 group-focus-within:text-sky-500 transition-colors" />
+              <input 
+                type="text" 
+                placeholder="Search any City or Area (e.g. Kolhapur, London, Pune)..." 
+                className="w-full pl-12 p-4 bg-gray-50 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-sky-500 transition-all shadow-inner"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <button 
+              type="submit"
+              disabled={isSearching}
+              className="bg-sky-600 text-white px-10 rounded-2xl font-black uppercase text-xs shadow-lg hover:bg-sky-700 transition-all flex items-center gap-2"
+            >
+              {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Locate"}
+            </button>
+          </form>
+
+          <button 
+            onClick={generate10EqualWards}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-5 rounded-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all uppercase tracking-widest text-sm"
+          >
+            <Layers className="w-5 h-5" /> Auto-Divide into 10 Equal Wards
+          </button>
         </div>
 
-        {/* Main Map */}
-        <div className="h-[500px] rounded-[3rem] overflow-hidden shadow-2xl border-8 border-white relative z-0">
-          <LeafletMap center={mapCenter} wards={autoWards} trails={miniMaps} />
+        {/* --- High Definition Map View --- */}
+        <div className="h-[550px] rounded-[3.5rem] overflow-hidden shadow-2xl border-8 border-white relative z-0">
+          <LeafletMap center={mapCenter} wards={autoWards} />
         </div>
 
-        {/* Ward Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {miniMaps.map((m) => (
-            <div key={m.ward.id} className="bg-white p-6 rounded-[2rem] shadow-lg text-center border border-gray-50">
-              <h3 className="font-black text-sky-600 uppercase italic">Ward {m.ward.ward_number}</h3>
-              <div className="mt-2 text-[9px] font-black text-emerald-500 bg-emerald-50 py-1 px-3 rounded-full inline-block uppercase">Syncing Live</div>
+        {/* --- Live Ward Status --- */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pb-12">
+          {autoWards.map(w => (
+            <div key={w.id} className="bg-white p-6 rounded-[2rem] shadow-xl border-t-4 border-emerald-500 text-center hover:scale-105 transition-all">
+              <h3 className="font-black text-gray-800 uppercase text-xs tracking-widest">Unit {w.ward_number}</h3>
+              <p className="text-[9px] font-black text-emerald-500 uppercase mt-2 bg-emerald-50 py-1 rounded-full">Sync Ready</p>
             </div>
           ))}
         </div>
+
       </div>
     </div>
   );
