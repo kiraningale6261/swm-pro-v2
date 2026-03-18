@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Loader2, Search, Layers, Globe } from 'lucide-react';
+import { Loader2, Search, Layers, Globe, Navigation } from 'lucide-react';
 import React from 'react';
 
 // --- Client-Only Leaflet Engine ---
@@ -12,7 +12,10 @@ const LeafletMap = dynamic(() => import('react-leaflet').then((mod) => {
   const MapFlyController = ({ center }: { center: [number, number] }) => {
     const map = useMap();
     useEffect(() => { 
-      if (center) map.flyTo(center, 15, { duration: 2.5 }); 
+      if (center) {
+        // City ke exact center par zoom focus
+        map.flyTo(center, 15, { animate: true, duration: 2.5 }); 
+      }
     }, [center, map]);
     return null;
   };
@@ -20,39 +23,44 @@ const LeafletMap = dynamic(() => import('react-leaflet').then((mod) => {
   return function Map({ center, wards, cityGeoJSON }: any) {
     return (
       <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl={false}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OSM' />
+        {/* Dark Mode Theme (Apple Maps Style) */}
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
         <MapFlyController center={center} />
         
-        {/* Real Village/City Boundary */}
+        {/* Exact Official Boundary */}
         {cityGeoJSON && (
-          <GeoJSON data={cityGeoJSON} style={{ color: '#1e40af', weight: 3, fillOpacity: 0.1, fillColor: '#3b82f6' }} />
+          <GeoJSON 
+            key={JSON.stringify(cityGeoJSON)} 
+            data={cityGeoJSON} 
+            style={{ color: '#ef4444', weight: 4, fillOpacity: 0.1, fillColor: '#ef4444' }} 
+          />
         )}
 
-        {/* Professional Wards (Inside Boundary Only) */}
+        {/* Professional Ward Partitions (Inside Border Only) */}
         {wards.map((w: any) => (
           <Polygon 
             key={w.id} 
             positions={w.bounds} 
-            pathOptions={{ color: '#1d4ed8', fillColor: '#3b82f6', fillOpacity: 0.3, weight: 2 }} 
+            pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.2, weight: 1.5 }} 
           />
         ))}
         {center && <Marker position={center} />}
       </MapContainer>
     );
   };
-}), { ssr: false, loading: () => <div className="h-full w-full bg-slate-100 flex items-center justify-center font-black">ANALYSING VILLAGE BOUNDARIES...</div> });
+}), { ssr: false, loading: () => <div className="h-full w-full bg-[#111827] flex items-center justify-center font-black text-gray-400">SYNCING OFFICIAL BOUNDARIES...</div> });
 
 export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [mapCenter, setMapCenter] = useState<[number, number]>([16.7050, 74.2433]); 
+  const [mapCenter, setMapCenter] = useState<[number, number]>([20.5937, 78.9629]); 
   const [autoWards, setAutoWards] = useState<any[]>([]);
   const [cityGeoJSON, setCityGeoJSON] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
-  // --- Exact Search: Fetching Real GeoJSON Boundary ---
+  // --- Universal Search: official Boundary Fetching ---
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery) return;
@@ -60,47 +68,50 @@ export default function DashboardPage() {
     setAutoWards([]); 
     
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&q=${encodeURIComponent(searchQuery)}&limit=1`);
+      // Nominatim API se exact Polygon data fetch karna
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&addressdetails=1&q=${encodeURIComponent(searchQuery)}&limit=1`);
       const data = await res.json();
       
       if (data && data.length > 0) {
-        const geojson = data[0].geojson;
-        setCityGeoJSON(geojson);
-        setMapCenter([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
+        const result = data[0];
+        setCityGeoJSON(result.geojson);
+        // Map ko exact center par bhejna
+        setMapCenter([parseFloat(result.lat), parseFloat(result.lon)]);
+      } else {
+        alert("City boundary not found! Please try: Shirol, Maharashtra");
       }
     } catch (err) { console.error(err); } finally { setIsSearching(false); }
   };
 
-  // --- Professional Ward Division (Grid Clipping Logic) ---
-  const generateWards = () => {
+  // --- smart Partition Logic: clipping Wards Inside Real Border ---
+  const generateSmartWards = () => {
     if (!cityGeoJSON || !mapCenter) return;
 
-    // Boundary points nikalna
-    let coords = [];
-    if (cityGeoJSON.type === 'Polygon') coords = cityGeoJSON.coordinates[0];
-    else if (cityGeoJSON.type === 'MultiPolygon') coords = cityGeoJSON.coordinates[0][0];
+    let borderPoints = [];
+    if (cityGeoJSON.type === 'Polygon') {
+      borderPoints = cityGeoJSON.coordinates[0];
+    } else if (cityGeoJSON.type === 'MultiPolygon') {
+      borderPoints = cityGeoJSON.coordinates[0][0];
+    } else {
+      alert("Geometry format not supported for partition.");
+      return;
+    }
 
     const newWards = [];
-    // City ke real shape ke points ko use karke 10 hisse banana
-    const pointsCount = coords.length;
-    const step = Math.floor(pointsCount / 10);
+    const step = Math.floor(borderPoints.length / 10);
 
     for (let i = 0; i < 10; i++) {
-      const startIdx = i * step;
-      const endIdx = (i === 9) ? pointsCount : (i + 1) * step;
+      const start = i * step;
+      const end = (i === 9) ? borderPoints.length : (i + 1) * step;
 
-      // Ward area: Center se boundary points tak ka shape (Image 3 jaisa look)
-      const wardShape = [
+      // Center point se boundary points tak ke polygon banana
+      const wardBounds = [
         mapCenter,
-        ...coords.slice(startIdx, endIdx).map((c: any) => [c[1], c[0]]),
+        ...borderPoints.slice(start, end).map((c: any) => [c[1], c[0]]),
         mapCenter
       ];
 
-      newWards.push({
-        id: i + 1,
-        ward_number: i + 1,
-        bounds: wardShape
-      });
+      newWards.push({ id: Date.now() + i, ward_number: i + 1, bounds: wardBounds });
     }
     setAutoWards(newWards);
   };
@@ -108,37 +119,48 @@ export default function DashboardPage() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
+    <div className="min-h-screen bg-[#0f172a] p-4 md:p-8 font-sans text-white">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* Auto-Ward Engine Control */}
-        <div className="bg-white rounded-[2rem] shadow-2xl p-8 border border-slate-100">
-          <div className="flex items-center gap-3 mb-6">
-            <Layers className="w-8 h-8 text-blue-600" />
-            <h1 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">Auto-Ward Engine</h1>
+        {/* --- Global Command Panel (Apple Maps Style UI) --- */}
+        <div className="bg-slate-900/50 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-8 border border-slate-800">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="bg-blue-500 p-3 rounded-2xl shadow-lg shadow-blue-500/20">
+              <Navigation className="w-8 h-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-black tracking-tighter uppercase italic">SWM Command Center</h1>
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Global Fleet Sync Active</p>
+            </div>
           </div>
           
           <div className="flex flex-col md:flex-row gap-4">
-            <form onSubmit={handleSearch} className="flex-1 relative">
-              <Search className="absolute left-4 top-4 text-slate-400 w-5 h-5" />
+            <form onSubmit={handleSearch} className="flex-1 relative group">
+              <Search className="absolute left-5 top-5 text-slate-500 w-6 h-6 group-focus-within:text-blue-500 transition-all" />
               <input 
-                type="text" placeholder="Village Name (e.g. Shirol, Kurundwad)..." 
-                className="w-full pl-12 p-4 bg-slate-50 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-blue-500 transition-all shadow-inner"
+                type="text" placeholder="Search any City or Village..." 
+                className="w-full pl-14 p-5 bg-slate-800/50 border border-slate-700 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all text-lg"
                 value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               />
             </form>
-            <button onClick={handleSearch} className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black uppercase text-xs shadow-lg">
-              {isSearching ? "LOCATING..." : "LOCATE"}
+            <button 
+              onClick={handleSearch}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-5 rounded-2xl font-black transition-all shadow-xl uppercase text-xs tracking-widest"
+            >
+              {isSearching ? "Locating..." : "Locate"}
             </button>
           </div>
 
-          <button onClick={generateWards} className="w-full mt-4 bg-emerald-600 text-white p-5 rounded-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all uppercase tracking-widest text-sm">
-            GENERATE 10 WARDS (INSIDE BOUNDARY)
+          <button 
+            onClick={generateSmartWards}
+            className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white p-6 rounded-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all uppercase tracking-widest text-sm"
+          >
+            <Layers className="w-6 h-6" /> Auto-Divide Inside Official Borders
           </button>
         </div>
 
-        {/* Professional Map View */}
-        <div className="h-[550px] rounded-[3rem] overflow-hidden shadow-2xl border-8 border-white relative z-0">
+        {/* --- Professional Unified Map --- */}
+        <div className="h-[600px] w-full rounded-[3.5rem] overflow-hidden shadow-2xl border-[12px] border-slate-900 relative z-0">
           <LeafletMap center={mapCenter} wards={autoWards} cityGeoJSON={cityGeoJSON} />
         </div>
 
