@@ -1,162 +1,135 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Loader2, MousePointer2, Layers, Globe, Trash2, Zap } from 'lucide-react';
+import { 
+  Search, Trash2, Zap, Save, 
+  LayoutGrid, QrCode, Download, 
+  CheckCircle2, AlertCircle, MousePointer2 
+} from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 import React from 'react';
 import Script from 'next/script';
+import { QRCodeSVG } from 'qrcode.react'; // Build-safe QR Library
 
-// --- Client-Only Leaflet Engine ---
+// --- Client-Only Map Engine ---
 const LeafletMap = dynamic(() => import('react-leaflet').then((mod) => {
-  const { MapContainer, TileLayer, Polygon, Marker, useMap, Polyline } = mod;
+  const { MapContainer, TileLayer, Polygon, Marker, useMap, Polyline, LayersControl, Tooltip } = mod;
   
-  const MapFlyController = ({ center }: { center: [number, number] }) => {
-    const map = useMap();
-    useEffect(() => { if (center) map.flyTo(center, 15, { duration: 2 }); }, [center]);
-    return null;
-  };
-
-  const ClickHandler = ({ onClick }: { onClick: (e: any) => void }) => {
-    const map = useMap();
-    useEffect(() => {
-      map.on('click', onClick);
-      return () => { map.off('click', onClick); };
-    }, [map, onClick]);
-    return null;
-  };
-
   return function Map({ center, wards, drawPoints, onMapClick }: any) {
     return (
       <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl={false}>
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-        <MapFlyController center={center} />
-        <ClickHandler onClick={onMapClick} />
+        <LayersControl position="topright">
+          <LayersControl.BaseLayer checked name="Standard Map"><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" /></LayersControl.BaseLayer>
+          <LayersControl.BaseLayer name="Satellite View"><TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" /></LayersControl.BaseLayer>
+        </LayersControl>
 
-        {/* Boundary points and visual lines */}
-        {drawPoints.map((p: any, i: number) => (
-          <Marker key={i} position={p} />
-        ))}
-        {drawPoints.length > 1 && <Polyline positions={drawPoints} color="#3b82f6" weight={3} />}
-        {drawPoints.length > 2 && <Polygon positions={drawPoints} color="#3b82f6" fillOpacity={0.1} dashArray="5, 10" />}
+        {drawPoints.length > 0 && drawPoints.map((p: any, i: number) => <Marker key={i} position={p} />)}
+        {drawPoints.length > 1 && <Polyline positions={drawPoints} color="#0ea5e9" weight={3} />}
 
-        {/* 10 Professional Wards */}
-        {wards.map((w: any) => (
-          <Polygon 
-            key={w.id} 
-            positions={w.bounds} 
-            pathOptions={{ color: '#1d4ed8', fillColor: '#3b82f6', fillOpacity: 0.4, weight: 2 }} 
-          />
+        {wards.map((w: any, idx: number) => (
+          <Polygon key={w.id || idx} positions={w.bounds} pathOptions={{ 
+            color: w.status === 'Green' ? '#10b981' : w.status === 'Yellow' ? '#f59e0b' : '#ef4444', 
+            fillColor: w.status === 'Green' ? '#10b981' : w.status === 'Yellow' ? '#f59e0b' : '#ef4444',
+            fillOpacity: 0.4, weight: 2 
+          }}>
+            <Tooltip permanent direction="center" className="bg-white/90 px-2 py-1 rounded-lg font-black text-slate-700 uppercase text-[9px]">
+              Ward {String(idx + 1).padStart(2, '0')}
+            </Tooltip>
+          </Polygon>
         ))}
       </MapContainer>
     );
   };
-}), { ssr: false, loading: () => <div className="h-full w-full bg-[#0a0a0a] flex items-center justify-center text-gray-400 font-black">Booting Drawing Engine...</div> });
+}), { ssr: false, loading: () => <div className="h-full w-full bg-slate-50 flex items-center justify-center font-bold text-slate-400 uppercase">Booting SWM PRO...</div> });
 
 export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
-  const [turfReady, setTurfReady] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [mapCenter, setMapCenter] = useState<[number, number]>([16.7050, 74.2433]); 
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
   const [autoWards, setAutoWards] = useState<any[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [view, setView] = useState<'MAP' | 'QR'>('MAP');
 
-  useEffect(() => { 
-    setMounted(true); 
-    // Check if turf is already loaded
-    if (typeof window !== 'undefined' && (window as any).turf) setTurfReady(true);
-  }, []);
-
-  const onMapClick = (e: any) => {
-    setDrawPoints(prev => [...prev, [e.latlng.lat, e.latlng.lng]]);
-  };
+  useEffect(() => { setMounted(true); }, []);
 
   const partitionArea = () => {
     const turf = (window as any).turf;
-    if (!turf) {
-      alert("System is still loading calculation engine. Please wait 2 seconds.");
-      return;
-    }
-    if (drawPoints.length < 3) {
-      alert("Bhai, kam se kam 3 points map par click karke border draw kijiye!");
-      return;
-    }
-
-    try {
-      // 1. Create polygon from drawn points
-      const polygonCoords = [...drawPoints, drawPoints[0]].map(p => [p[1], p[0]]);
-      const polygon = turf.polygon([polygonCoords]);
-      const bbox = turf.bbox(polygon);
-      
-      // 2. Generate 10 random seeds inside the boundary
-      const points = turf.randomPoint(15, { bbox });
-      const voronoi = turf.voronoi(points, { bbox });
-      
-      const results: any[] = [];
-      voronoi.features.forEach((vFeature: any, i: number) => {
-        // 3. Clip Voronoi cells with the drawn boundary
-        const intersect = turf.intersect(turf.featureCollection([polygon, vFeature]));
-        if (intersect && results.length < 10) {
-          const coords = intersect.geometry.coordinates[0].map((c: any) => [c[1], c[0]]);
-          results.push({ id: Date.now() + i, bounds: coords });
-        }
-      });
-
-      if (results.length > 0) {
-        setAutoWards(results);
-      } else {
-        alert("Partition failed! Try drawing a larger or simpler area.");
+    if (!turf || drawPoints.length < 3) return alert("Pehle 3 points click karke border draw karein!");
+    const polygon = turf.polygon([[...drawPoints, drawPoints[0]].map(p => [p[1], p[0]])]);
+    const bbox = turf.bbox(polygon);
+    const points = turf.randomPoint(12, { bbox });
+    const voronoi = turf.voronoi(points, { bbox });
+    const results: any[] = [];
+    voronoi.features.forEach((vFeature: any, i: number) => {
+      const intersect = turf.intersect(turf.featureCollection([polygon, vFeature]));
+      if (intersect && results.length < 10) {
+        results.push({ 
+          id: `W-${i+1}`, ward_number: i + 1, 
+          status: 'Red', // Default Status
+          bounds: intersect.geometry.coordinates[0].map((c: any) => [c[1], c[0]]) 
+        });
       }
-    } catch (err) {
-      console.error("Partition Error:", err);
-      alert("Calculation Error. Please reset and draw again.");
-    }
+    });
+    setAutoWards(results);
   };
 
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#050505] p-4 md:p-8">
-      {/* Build-Safe Turf.js */}
-      <Script 
-        src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js" 
-        strategy="lazyOnload"
-        onLoad={() => setTurfReady(true)}
-      />
-
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
+      <Script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js" strategy="lazyOnload" />
+      
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="bg-[#111111] rounded-[2rem] p-8 border border-[#222222] shadow-2xl">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-3 text-white">
-              <Globe className="w-8 h-8 text-blue-500" />
-              <div>
-                <h1 className="text-2xl font-black uppercase italic tracking-tighter">Precision Drawing Engine</h1>
-                <p className="text-[9px] font-bold text-gray-500 uppercase">Status: {turfReady ? 'READY' : 'LOADING ENGINE...'}</p>
+        {/* --- Navigation Tabs --- */}
+        <div className="flex bg-white p-2 rounded-[2rem] shadow-sm border border-slate-100 w-fit">
+          <button onClick={() => setView('MAP')} className={`px-8 py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest transition-all ${view === 'MAP' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>
+            Ward Designer
+          </button>
+          <button onClick={() => setView('QR')} className={`px-8 py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest transition-all ${view === 'QR' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>
+            QR Manager
+          </button>
+        </div>
+
+        {view === 'MAP' ? (
+          <>
+            <div className="bg-white rounded-[2.5rem] shadow-sm p-8 border border-slate-100 space-y-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <input type="text" placeholder="Search City..." className="flex-1 p-5 bg-slate-50 rounded-3xl font-bold border-2 border-transparent focus:border-sky-500 text-slate-800 shadow-inner" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                <button onClick={partitionArea} className="bg-emerald-500 text-white px-8 py-5 rounded-3xl font-black uppercase text-[10px] shadow-lg shadow-emerald-100 flex items-center gap-2"><Zap className="w-4 h-4" /> Partition</button>
+                <button onClick={() => { setDrawPoints([]); setAutoWards([]); }} className="p-5 bg-slate-100 text-slate-400 rounded-3xl hover:bg-red-50"><Trash2 className="w-5 h-5" /></button>
               </div>
             </div>
 
-            <div className="flex gap-4 w-full md:w-auto">
-              <button onClick={() => { setDrawPoints([]); setAutoWards([]); }} className="flex-1 bg-red-600/10 text-red-500 px-6 py-4 rounded-2xl font-black text-xs uppercase border border-red-500/20">
-                <Trash2 className="w-4 h-4 mr-2 inline" /> Clear
-              </button>
-              <button 
-                onClick={partitionArea} 
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase shadow-xl transition-all flex items-center justify-center gap-2"
-              >
-                <Zap className="w-4 h-4" /> Partition Area
-              </button>
+            <div className="h-[550px] rounded-[3.5rem] overflow-hidden shadow-2xl border-[12px] border-white relative">
+              <LeafletMap center={mapCenter} wards={autoWards} drawPoints={drawPoints} onMapClick={(e: any) => setDrawPoints(p => [...p, [e.latlng.lat, e.latlng.lng]])} />
             </div>
+          </>
+        ) : (
+          /* --- QR Manager View --- */
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+            {autoWards.length > 0 ? autoWards.map((w) => (
+              <div key={w.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center gap-4 hover:shadow-xl transition-all group">
+                <div className="w-full flex justify-between items-center px-2">
+                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ward {w.ward_number}</span>
+                   <div className={`w-3 h-3 rounded-full ${w.status === 'Green' ? 'bg-emerald-500' : w.status === 'Yellow' ? 'bg-amber-500' : 'bg-red-500'} shadow-lg`} />
+                </div>
+                <div className="p-4 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 group-hover:border-sky-500 transition-all">
+                  <QRCodeSVG value={`SWM-PRO-WARD-${w.ward_number}`} size={100} level="H" includeMargin={true} />
+                </div>
+                <button className="w-full bg-slate-50 py-3 rounded-2xl text-[9px] font-black uppercase text-slate-500 flex items-center justify-center gap-2 hover:bg-sky-500 hover:text-white transition-all">
+                  <Download className="w-3 h-3" /> Download QR
+                </button>
+              </div>
+            )) : (
+              <div className="col-span-full h-64 bg-white rounded-[2.5rem] flex flex-col items-center justify-center border-2 border-dashed border-slate-200">
+                <QrCode className="w-12 h-12 text-slate-200 mb-2" />
+                <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Generate wards first to see QR codes</p>
+              </div>
+            )}
           </div>
-
-          <div className="mt-6 p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10 flex items-center gap-3">
-            <MousePointer2 className="w-5 h-5 text-blue-500" />
-            <p className="text-[11px] font-bold text-blue-400 uppercase">
-              How to: Click on the map to mark boundary points. Connect 3+ points, then click 'Partition Area'.
-            </p>
-          </div>
-        </div>
-
-        <div className="h-[600px] rounded-[3rem] overflow-hidden shadow-2xl border-8 border-[#1a1a1a] relative z-0">
-          <LeafletMap center={mapCenter} wards={autoWards} drawPoints={drawPoints} onMapClick={onMapClick} />
-        </div>
+        )}
       </div>
     </div>
   );
