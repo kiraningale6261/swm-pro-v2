@@ -16,6 +16,28 @@ export const supabase = createClient(supabaseUrl, supabaseServiceKey || supabase
 
 // Helper functions for common operations
 export const supabaseAdmin = {
+  // --- NEW: HIERARCHY SECTION (Missing previously) ---
+  async getHierarchy(level: string) {
+    const table = level.toLowerCase() + 's'; // e.g., 'villages', 'districts'
+    const { data, error } = await supabase.from(table).select('*').order('name');
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createHierarchyItem(level: string, item: any) {
+    const table = level.toLowerCase() + 's';
+    const { data, error } = await supabase.from(table).insert([item]).select();
+    if (error) throw error;
+    return data?.[0];
+  },
+
+  async deleteHierarchyItem(level: string, id: number) {
+    const table = level.toLowerCase() + 's';
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  },
+
   // --- USERS SECTION ---
   async getUsers() {
     const { data, error } = await supabase.from('users').select('*');
@@ -43,7 +65,6 @@ export const supabaseAdmin = {
 
   // --- WARDS SECTION ---
   async getWards() {
-    // Wards ko ward_number ke hisaab se order kar rahe hain
     const { data, error } = await supabase.from('wards').select('*').order('ward_number', { ascending: true });
     if (error) throw error;
     return data || [];
