@@ -1,7 +1,11 @@
 // src/lib/osm.ts
 
+/**
+ * Ye function OpenStreetMap (OSM) se official city boundary fetch karta hye.
+ * Isse manual drawing ki zaroorat nahi padti aur partition error nahi aata.
+ */
 export const fetchCityBoundary = async (cityName: string) => {
-  // Overpass API Query: City ki administrative boundary nikalne ke liye
+  // Overpass API Query: Administrative boundary nikalne ke liye
   const query = `
     [out:json][timeout:25];
     (
@@ -14,27 +18,26 @@ export const fetchCityBoundary = async (cityName: string) => {
   
   try {
     const response = await fetch(url);
-    if (!response.ok) throw new Error("OSM Server Busy");
+    if (!response.ok) throw new Error("OSM Server is busy");
     
     const data = await response.json();
     
     if (data.elements && data.elements.length > 0) {
       const element = data.elements[0];
       
-      // Coordinates ko Leaflet/Turf format mein convert karna
-      // Note: Relation mein multiple ways ho sakte hain, hum unhe merge karte hain
+      // Coordinates ko extract karna (outer boundary members)
       const coordinates = element.members
         .filter((m: any) => m.role === 'outer' && m.geometry)
         .map((m: any) => m.geometry.map((g: any) => [g.lon, g.lat]));
 
       if (coordinates.length === 0) return null;
 
-      // Business Logic: GeoJSON Feature return karna taaki Partition ho sake
+      // GeoJSON Polygon return karna taaki Turf.js ise 10 Wards me divide kar sake
       return {
         type: "Feature",
         geometry: {
           type: "Polygon",
-          coordinates: [coordinates[0]] // Pehla outer ring pakad rahe hain
+          coordinates: [coordinates[0]] // Pehli outer boundary le rahe hain
         },
         properties: { 
           name: cityName,
@@ -44,7 +47,7 @@ export const fetchCityBoundary = async (cityName: string) => {
     }
     return null;
   } catch (error) {
-    console.error("OSM Error:", error);
+    console.error("OSM Fetch Error:", error);
     return null;
   }
 };
