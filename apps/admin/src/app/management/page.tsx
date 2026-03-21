@@ -11,14 +11,12 @@ interface WorkerForm {
   id?: number;
   name: string;
   mobile: string;
-  role: 'admin' | 'worker' | 'driver' | 'sweeper'; // Role update
-  pin: string; // Naya PIN field
-  village_id?: string; // Naya Village field
+  role: 'admin' | 'worker' | 'driver' | 'sweeper'; 
+  pin: string; 
+  village_id?: string; 
   device_id?: string;
   ward_id?: number;
 }
-
-// ... VehicleForm same rahega ...
 
 export default function ManagementPage() {
   const queryClient = useQueryClient();
@@ -26,7 +24,7 @@ export default function ManagementPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [wards, setWards] = useState<Ward[]>([]);
-  const [villages, setVillages] = useState<any[]>([]); // Villages state
+  const [villages, setVillages] = useState<any[]>([]); 
 
   // Form states update
   const [workerForm, setWorkerForm] = useState<WorkerForm>({
@@ -37,28 +35,53 @@ export default function ManagementPage() {
     village_id: '',
   });
 
-  // ... (Fetch Users, Fetch Wards logic same rahega) ...
+  // --- 1. Fetch Users (ReferenceError Fix) ---
+  const { data: users = [], isLoading: usersLoading, error: usersError } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      try {
+        const data = await supabaseAdmin.getUsers();
+        return (data || []) as User[];
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        throw error;
+      }
+    },
+  });
+
+  // Fetch Wards
+  useEffect(() => {
+    const fetchWards = async () => {
+      try {
+        const data = await supabaseAdmin.getWards();
+        setWards((data || []) as Ward[]);
+      } catch (error) {
+        console.error('Error fetching wards:', error);
+      }
+    };
+    fetchWards();
+  }, []);
 
   // Fetch Villages for dropdown
   useEffect(() => {
     const fetchVillages = async () => {
       try {
         const data = await supabaseAdmin.getHierarchy('Village');
-        setVillages(data);
+        setVillages(data || []);
       } catch (error) { console.error(error); }
     };
     fetchVillages();
   }, []);
 
-  // Create/Update User Mutation [Updated Logic]
+  // --- 2. Mutations ---
   const userMutation = useMutation({
     mutationFn: async (data: WorkerForm) => {
       const payload = {
         name: data.name,
         mobile: data.mobile,
         role: data.role,
-        pin: data.pin, // PIN save ho raha hai
-        village_id: data.village_id, // Village link ho raha hai
+        pin: data.pin, 
+        village_id: data.village_id, 
         device_id: data.device_id,
         is_active: true,
       };
@@ -75,16 +98,50 @@ export default function ManagementPage() {
       resetWorkerForm();
       setIsModalOpen(false);
     },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to save");
+    }
   });
+
+  // --- 3. Handlers ---
+  const handleSaveWorker = () => {
+    if (!workerForm.name || !workerForm.mobile || !workerForm.pin) {
+      return toast.error("Please fill required fields");
+    }
+    userMutation.mutate(workerForm);
+  };
+
+  const handleEditWorker = (user: any) => {
+    setWorkerForm({
+      id: user.id,
+      name: user.name,
+      mobile: user.mobile,
+      role: user.role,
+      pin: user.pin || '',
+      village_id: user.village_id || '',
+      device_id: user.device_id || '',
+    });
+    setEditingId(user.id);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteWorker = async (id: number) => {
+    if (confirm('Delete this worker?')) {
+      const { error } = await supabaseAdmin.supabase.from('users').delete().eq('id', id);
+      if (!error) {
+        queryClient.invalidateQueries({ queryKey: ['users'] });
+        toast.success("Deleted");
+      }
+    }
+  };
 
   const resetWorkerForm = () => {
     setWorkerForm({ name: '', mobile: '', role: 'worker', pin: '', village_id: '' });
     setEditingId(null);
   };
 
-  // ... (handleEdit, handleDelete logic same rahega) ...
-
-  const workers = users.filter((u) => u.role !== 'admin');
+  // Filter logic
+  const workers = users.filter((u: any) => u.role !== 'admin');
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
@@ -103,7 +160,11 @@ export default function ManagementPage() {
           </button>
         </div>
 
-        {/* ... (Tabs UI same rahega) ... */}
+        {/* Tabs */}
+        <div className="flex bg-white p-2 rounded-[2rem] shadow-sm border border-slate-100 w-fit mb-8">
+          <button onClick={() => setActiveTab('workers')} className={`px-10 py-4 rounded-[1.5rem] font-black text-[10px] uppercase transition-all ${activeTab === 'workers' ? 'bg-sky-500 text-white shadow-lg' : 'text-slate-400'}`}>Workers</button>
+          <button onClick={() => setActiveTab('vehicles')} className={`px-10 py-4 rounded-[1.5rem] font-black text-[10px] uppercase transition-all ${activeTab === 'vehicles' ? 'bg-sky-500 text-white shadow-lg' : 'text-slate-400'}`}>Vehicles</button>
+        </div>
 
         {activeTab === 'workers' && (
           <div className="space-y-6">
@@ -118,62 +179,73 @@ export default function ManagementPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {workers.map((worker) => (
-                    <tr key={worker.id} className="hover:bg-slate-50 transition-all">
-                      <td className="px-10 py-8">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-2xl bg-sky-50 flex items-center justify-center font-black text-sky-600 italic uppercase">{worker.name.charAt(0)}</div>
-                          <span className="font-bold text-slate-800 text-lg tracking-tighter">{worker.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-10 py-8 text-sm font-bold text-slate-600">
-                        {worker.mobile} <br />
-                        <span className="text-[9px] font-mono text-slate-300">PIN: {worker.pin || '****'}</span>
-                      </td>
-                      <td className="px-10 py-8">
-                        <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-[8px] font-black uppercase tracking-widest">{worker.role}</span>
-                        <p className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1"><MapPin className="w-3 h-3"/> Village ID: {worker.village_id || 'Not Set'}</p>
-                      </td>
-                      <td className="px-10 py-8">
-                        <div className="flex gap-2">
-                           <button onClick={() => handleEditWorker(worker)} className="p-3 bg-slate-50 rounded-2xl text-slate-400 hover:text-sky-500 transition-all"><Edit2 className="w-4 h-4" /></button>
-                           <button onClick={() => handleDeleteWorker(worker.id)} className="p-3 bg-slate-50 rounded-2xl text-slate-400 hover:text-red-500 transition-all"><Trash2 className="w-4 h-4" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {workers.length === 0 ? (
+                    <tr><td colSpan={4} className="py-20 text-center text-slate-300 font-bold uppercase text-xs tracking-widest italic">No Workers Linked</td></tr>
+                  ) : (
+                    workers.map((worker) => (
+                      <tr key={worker.id} className="hover:bg-slate-50 transition-all">
+                        <td className="px-10 py-8">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-2xl bg-sky-50 flex items-center justify-center font-black text-sky-600 italic uppercase">{worker.name.charAt(0)}</div>
+                            <span className="font-bold text-slate-800 text-lg tracking-tighter">{worker.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-10 py-8 text-sm font-bold text-slate-600">
+                          {worker.mobile} <br />
+                          <span className="text-[9px] font-mono text-slate-300">PIN: {worker.pin || '****'}</span>
+                        </td>
+                        <td className="px-10 py-8">
+                          <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-[8px] font-black uppercase tracking-widest">{worker.role}</span>
+                          <p className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1"><MapPin className="w-3 h-3"/> Village ID: {worker.village_id || 'Not Set'}</p>
+                        </td>
+                        <td className="px-10 py-8">
+                          <div className="flex gap-2">
+                             <button onClick={() => handleEditWorker(worker)} className="p-3 bg-slate-50 rounded-2xl text-slate-400 hover:text-sky-500 transition-all"><Edit2 className="w-4 h-4" /></button>
+                             <button onClick={() => handleDeleteWorker(worker.id)} className="p-3 bg-slate-50 rounded-2xl text-slate-400 hover:text-red-500 transition-all"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
+        {/* Vehicles Tab Placeholder */}
+        {activeTab === 'vehicles' && (
+          <div className="bg-white rounded-[4rem] p-20 text-center border border-slate-100 shadow-sm">
+            <p className="text-slate-300 font-black uppercase tracking-[0.5em] text-xs italic">Vehicle Fleet Coming Soon...</p>
+          </div>
+        )}
+
         {/* Worker Modal - iPhone Style */}
         {isModalOpen && (
           <div className="fixed inset-0 z-[999] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-md">
-            <div className="bg-white w-full max-w-xl rounded-[4rem] p-12 shadow-2xl relative">
+            <div className="bg-white w-full max-w-xl rounded-[4rem] p-12 shadow-2xl relative animate-in zoom-in duration-300">
               <div className="flex justify-between items-center mb-10">
-                <h2 className="text-3xl font-black italic tracking-tighter uppercase">{editingId ? 'Update Worker' : 'New Worker'}</h2>
-                <button onClick={() => setIsModalOpen(false)} className="p-4 bg-slate-50 rounded-full"><X /></button>
+                <h2 className="text-3xl font-black italic tracking-tighter uppercase leading-none">{editingId ? 'Update Worker' : 'New Worker'}</h2>
+                <button onClick={() => setIsModalOpen(false)} className="p-4 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 transition-all"><X /></button>
               </div>
 
               <div className="space-y-4">
-                <input placeholder="Worker Name" className="p-5 bg-slate-50 rounded-3xl font-bold w-full outline-none" value={workerForm.name} onChange={(e) => setWorkerForm({ ...workerForm, name: e.target.value })} />
-                <input placeholder="Mobile Number" className="p-5 bg-slate-50 rounded-3xl font-bold w-full outline-none" value={workerForm.mobile} onChange={(e) => setWorkerForm({ ...workerForm, mobile: e.target.value })} />
+                <input placeholder="Worker Name" className="p-6 bg-slate-50 rounded-3xl font-bold w-full outline-none" value={workerForm.name} onChange={(e) => setWorkerForm({ ...workerForm, name: e.target.value })} />
+                <input placeholder="Mobile Number" className="p-6 bg-slate-50 rounded-3xl font-bold w-full outline-none" value={workerForm.mobile} onChange={(e) => setWorkerForm({ ...workerForm, mobile: e.target.value })} />
                 <div className="grid grid-cols-2 gap-4">
-                  <input placeholder="4-Digit PIN" maxLength={4} className="p-5 bg-slate-50 rounded-3xl font-bold w-full outline-none" value={workerForm.pin} onChange={(e) => setWorkerForm({ ...workerForm, pin: e.target.value })} />
-                  <select className="p-5 bg-slate-50 rounded-3xl font-bold w-full outline-none appearance-none" value={workerForm.role} onChange={(e) => setWorkerForm({ ...workerForm, role: e.target.value as any })}>
+                  <input placeholder="4-Digit PIN" maxLength={4} className="p-6 bg-slate-50 rounded-3xl font-bold w-full outline-none" value={workerForm.pin} onChange={(e) => setWorkerForm({ ...workerForm, pin: e.target.value })} />
+                  <select className="p-6 bg-slate-50 rounded-3xl font-bold w-full outline-none appearance-none" value={workerForm.role} onChange={(e) => setWorkerForm({ ...workerForm, role: e.target.value as any })}>
                     <option value="worker">Standard Worker</option>
                     <option value="driver">Vehicle Driver</option>
                     <option value="sweeper">Road Sweeper</option>
                   </select>
                 </div>
-                <select className="p-5 bg-slate-50 rounded-3xl font-bold w-full outline-none appearance-none" value={workerForm.village_id} onChange={(e) => setWorkerForm({ ...workerForm, village_id: e.target.value })}>
+                <select className="p-6 bg-slate-50 rounded-3xl font-bold w-full outline-none appearance-none" value={workerForm.village_id} onChange={(e) => setWorkerForm({ ...workerForm, village_id: e.target.value })}>
                   <option value="">Select Village (e.g., Shirwal)</option>
                   {villages.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                 </select>
 
-                <button onClick={handleSaveWorker} className="w-full bg-sky-500 text-white p-6 rounded-3xl font-black uppercase text-xs tracking-widest shadow-xl mt-6">
+                <button onClick={handleSaveWorker} className="w-full bg-sky-500 text-white p-7 rounded-[2.5rem] font-black uppercase text-xs tracking-widest shadow-xl shadow-sky-100 hover:bg-slate-900 transition-all mt-6 disabled:bg-slate-200">
                   {userMutation.isPending ? 'Processing...' : 'Save Worker Profile'}
                 </button>
               </div>
