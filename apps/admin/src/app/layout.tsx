@@ -1,30 +1,46 @@
 'use client';
 
-import type { Metadata } from 'next';
 import './globals.css';
 import Providers from './providers';
 import { 
   LayoutDashboard, Users, Map, QrCode, 
-  BarChart3, Settings, ShieldCheck, 
-  Truck, Droplets, Trash2, MapPin 
+  Settings, ShieldCheck, Truck, Droplets, 
+  Trash2, MapPin, Wind, Warehouse, BarChart3, Navigation 
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation'; // Active link check karne ke liye
+import { usePathname } from 'next/navigation';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname(); // Current path fetch kar rahe hain
+  const pathname = usePathname();
 
-  // Sidebar Menu Items - Updated with Ward Designer
-  const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-    { name: 'Hierarchy', icon: MapPin, path: '/hierarchy' },
-    { name: 'Ward Designer', icon: Map, path: '/hierarchy/designer' }, // Naya Designer Page
-    { name: 'Workers', icon: Users, path: '/management' },
-    { name: 'QR Manager', icon: QrCode, path: '/qr-manager' },
-    { name: 'Collections', icon: Trash2, path: '/monitoring/collections' },
-    { name: 'Sweeping', icon: Map, path: '/monitoring/sweeping' },
-    { name: 'Drainage', icon: Droplets, path: '/monitoring/drainage' },
-    { name: 'Reports', icon: BarChart3, path: '/reports' },
+  // --- Menu Grouping according to Roadmap ---
+  const menuGroups = [
+    {
+      title: "Module 0: Admin & Global",
+      items: [
+        { name: 'Live War Room', icon: LayoutDashboard, path: '/dashboard' },
+        { name: 'Hierarchy Setup', icon: MapPin, path: '/hierarchy' },
+        { name: 'Ward Designer', icon: Map, path: '/hierarchy/designer' },
+        { name: 'Wards Mini-Maps', icon: Navigation, path: '/dashboard/wards' },
+      ]
+    },
+    {
+      title: "Staff & Fleet",
+      items: [
+        { name: 'Staff Registry', icon: Users, path: '/management/staff' },
+        { name: 'Vehicle Assets', icon: Truck, path: '/management/vehicles' },
+        { name: 'QR Manager', icon: QrCode, path: '/management/qr-manager' },
+      ]
+    },
+    {
+      title: "Operations (Tasks)",
+      items: [
+        { name: 'Waste Collection', icon: Trash2, path: '/monitoring/collections' },
+        { name: 'Road Sweeping', icon: Wind, path: '/monitoring/sweeping' },
+        { name: 'Drainage Clean', icon: Droplets, path: '/monitoring/drainage' },
+        { name: 'MRF / Depot', icon: Warehouse, path: '/monitoring/depot' },
+      ]
+    }
   ];
 
   return (
@@ -32,56 +48,66 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        {/* Leaflet CSS for Map Rendering */}
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
       </head>
       
-      <body className="bg-slate-50 font-sans antialiased text-slate-900">
+      <body className="bg-slate-50 font-sans antialiased text-slate-900 overflow-hidden">
         <Providers>
-          <div className="flex min-h-screen">
+          <div className="flex h-screen overflow-hidden">
             
-            {/* --- iPhone Style White Sidebar --- */}
-            <aside className="w-80 bg-white border-r border-slate-100 p-10 flex flex-col gap-12 hidden md:flex sticky top-0 h-screen overflow-y-auto z-50">
-              <div className="flex items-center gap-4">
-                <div className="bg-sky-500 p-3 rounded-[1.25rem] shadow-xl shadow-sky-100">
-                  <Trash2 className="text-white w-7 h-7" />
+            {/* --- iPhone Style Sidebar --- */}
+            <aside className="w-80 bg-white border-r border-slate-100 p-8 flex flex-col gap-10 hidden md:flex h-full overflow-y-auto shrink-0 z-50">
+              {/* Logo Area */}
+              <div className="flex items-center gap-4 px-2">
+                <div className="bg-slate-900 p-3 rounded-[1.25rem] shadow-xl">
+                  <Trash2 className="text-white w-6 h-6" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">SWM PRO</h1>
-                  <p className="text-sky-500 text-[10px] font-bold uppercase tracking-widest mt-1">Version 2.0.0</p>
+                  <h1 className="text-xl font-black italic tracking-tighter uppercase leading-none">SWM PRO</h1>
+                  <p className="text-sky-500 text-[9px] font-black uppercase tracking-widest mt-1 italic">Version 2.0.0</p>
                 </div>
               </div>
 
-              <nav className="flex flex-col gap-2">
-                {menuItems.map((item) => (
-                  <Link 
-                    key={item.path} 
-                    href={item.path} 
-                    className={`flex items-center gap-5 px-8 py-5 rounded-[2rem] font-black text-[11px] uppercase tracking-widest transition-all duration-300 group ${
-                      pathname.startsWith(item.path) 
-                      ? 'bg-sky-500 text-white shadow-2xl shadow-sky-100 scale-105' 
-                      : 'text-slate-400 hover:bg-slate-50 hover:text-sky-500 hover:translate-x-2'
-                    }`}
-                  >
-                    <item.icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${pathname.startsWith(item.path) ? 'text-white' : ''}`} /> 
-                    {item.name}
-                  </Link>
+              {/* Navigation Groups */}
+              <nav className="flex flex-col gap-8">
+                {menuGroups.map((group, idx) => (
+                  <div key={idx} className="space-y-3">
+                    <p className="text-[10px] font-black uppercase text-slate-300 tracking-[0.2em] px-4">
+                      {group.title}
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      {group.items.map((item) => (
+                        <Link 
+                          key={item.path} 
+                          href={item.path} 
+                          className={`flex items-center gap-4 px-6 py-4 rounded-[1.8rem] font-bold text-[11px] uppercase tracking-wider transition-all duration-300 group ${
+                            pathname === item.path 
+                            ? 'bg-sky-500 text-white shadow-xl shadow-sky-100 scale-105 translate-x-2' 
+                            : 'text-slate-400 hover:bg-slate-50 hover:text-sky-500'
+                          }`}
+                        >
+                          <item.icon className={`w-4 h-4 transition-transform group-hover:scale-110`} /> 
+                          {item.name}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </nav>
 
-              {/* Extra Utility Menu */}
-              <div className="mt-auto pt-8 border-t border-slate-50 flex flex-col gap-3">
-                <Link href="/settings" className={`flex items-center gap-4 px-8 py-4 font-bold text-[10px] uppercase transition-colors ${pathname === '/settings' ? 'text-sky-500' : 'text-slate-400 hover:text-slate-600'}`}>
+              {/* Utility Footer */}
+              <div className="mt-auto pt-8 border-t border-slate-50 flex flex-col gap-2">
+                <Link href="/settings" className={`flex items-center gap-4 px-6 py-3 font-black text-[9px] uppercase tracking-widest transition-colors ${pathname === '/settings' ? 'text-sky-500' : 'text-slate-300 hover:text-slate-500'}`}>
                   <Settings className="w-4 h-4" /> Settings
                 </Link>
-                <Link href="/audit" className={`flex items-center gap-4 px-8 py-4 font-bold text-[10px] uppercase transition-colors ${pathname === '/audit' ? 'text-sky-500' : 'text-slate-400 hover:text-slate-600'}`}>
+                <Link href="/audit" className={`flex items-center gap-4 px-6 py-3 font-black text-[9px] uppercase tracking-widest transition-colors ${pathname === '/audit' ? 'text-sky-500' : 'text-slate-300 hover:text-slate-500'}`}>
                   <ShieldCheck className="w-4 h-4" /> Audit Logs
                 </Link>
               </div>
             </aside>
 
-            {/* --- Main Content Area --- */}
-            <main className="flex-1 p-10 overflow-x-hidden relative">
+            {/* --- Main Dashboard Area --- */}
+            <main className="flex-1 bg-slate-50 overflow-y-auto relative h-full">
               {children}
             </main>
 
