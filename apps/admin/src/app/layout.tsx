@@ -5,7 +5,7 @@ import Providers from './providers';
 import { 
   LayoutDashboard, Users, Map, QrCode, 
   Settings, ShieldCheck, Truck, Droplets, 
-  Trash2, MapPin, Wind, Warehouse, BarChart3, Navigation 
+  Trash2, MapPin, Wind, Warehouse, Navigation 
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -13,13 +13,12 @@ import { usePathname } from 'next/navigation';
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // --- Menu Grouping according to Roadmap ---
   const menuGroups = [
     {
       title: "Module 0: Admin & Global",
       items: [
         { name: 'Live War Room', icon: LayoutDashboard, path: '/dashboard' },
-        { name: 'Hierarchy Setup', icon: MapPin, path: '/hierarchy' },
+        // Fixed Path to avoid 404
         { name: 'Ward Designer', icon: Map, path: '/hierarchy/designer' },
         { name: 'Wards Mini-Maps', icon: Navigation, path: '/dashboard/wards' },
       ]
@@ -38,7 +37,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         { name: 'Waste Collection', icon: Trash2, path: '/monitoring/collections' },
         { name: 'Road Sweeping', icon: Wind, path: '/monitoring/sweeping' },
         { name: 'Drainage Clean', icon: Droplets, path: '/monitoring/drainage' },
-        { name: 'MRF / Depot', icon: Warehouse, path: '/monitoring/depot' },
       ]
     }
   ];
@@ -55,9 +53,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <div className="flex h-screen overflow-hidden">
             
-            {/* --- iPhone Style Sidebar --- */}
+            {/* --- WeVois Style Sidebar --- */}
             <aside className="w-80 bg-white border-r border-slate-100 p-8 flex flex-col gap-10 hidden md:flex h-full overflow-y-auto shrink-0 z-50">
-              {/* Logo Area */}
               <div className="flex items-center gap-4 px-2">
                 <div className="bg-slate-900 p-3 rounded-[1.25rem] shadow-xl">
                   <Trash2 className="text-white w-6 h-6" />
@@ -68,7 +65,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </div>
 
-              {/* Navigation Groups */}
               <nav className="flex flex-col gap-8">
                 {menuGroups.map((group, idx) => (
                   <div key={idx} className="space-y-3">
@@ -95,19 +91,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 ))}
               </nav>
 
-              {/* Utility Footer */}
               <div className="mt-auto pt-8 border-t border-slate-50 flex flex-col gap-2">
-                <Link href="/settings" className={`flex items-center gap-4 px-6 py-3 font-black text-[9px] uppercase tracking-widest transition-colors ${pathname === '/settings' ? 'text-sky-500' : 'text-slate-300 hover:text-slate-500'}`}>
+                <Link href="/settings" className="flex items-center gap-4 px-6 py-3 font-black text-[9px] uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors">
                   <Settings className="w-4 h-4" /> Settings
                 </Link>
-                <Link href="/audit" className={`flex items-center gap-4 px-6 py-3 font-black text-[9px] uppercase tracking-widest transition-colors ${pathname === '/audit' ? 'text-sky-500' : 'text-slate-300 hover:text-slate-500'}`}>
+                <Link href="/audit" className="flex items-center gap-4 px-6 py-3 font-black text-[9px] uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors">
                   <ShieldCheck className="w-4 h-4" /> Audit Logs
                 </Link>
               </div>
             </aside>
 
-            {/* --- Main Dashboard Area --- */}
-            <main className="flex-1 bg-slate-50 overflow-y-auto relative h-full">
+            {/* --- Main Dashboard Area (Fixed Padding for Full Map) --- */}
+            <main className="flex-1 bg-slate-50 relative h-full overflow-hidden">
               {children}
             </main>
 
