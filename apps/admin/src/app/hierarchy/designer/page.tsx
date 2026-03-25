@@ -1,134 +1,160 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
-import { fetchCityBoundary } from '@/lib/osm'; 
-import { Search, Zap, Save, Loader2, Target, Satellite, Map as MapIcon } from 'lucide-react';
+import { QrCode, Save, Trash2, MapPin, Target, MousePointer2 } from 'lucide-react';
 import { toast } from 'sonner';
 import 'leaflet/dist/leaflet.css';
 
+// SSR Safe Imports
 const MapContainer = dynamic(() => import('react-leaflet').then(m => m.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(m => m.TileLayer), { ssr: false });
+const Marker = dynamic(() => import('react-leaflet').then(m => m.Marker), { ssr: false });
 const Polygon = dynamic(() => import('react-leaflet').then(m => m.Polygon), { ssr: false });
-const Tooltip = dynamic(() => import('react-leaflet').then(m => m.Tooltip), { ssr: false });
+const useMapEvents = dynamic(() => import('react-leaflet').then(m => m.useMapEvents), { ssr: false });
 
-export default function VillageBoundaryDesigner() {
-  const [mapCenter, setMapCenter] = useState<[number, number]>([18.1488, 73.9822]);
-  const [searchCity, setSearchCity] = useState('');
-  const [isSatellite, setIsSatellite] = useState(false);
-  const [boundary, setBoundary] = useState<any>(null);
-  const [wards, setWards] = useState<any[]>([]);
-  const [villageId, setVillageId] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [turf, setTurf] = useState<any>(null);
+export default function QRLocationSyncDesigner() {
+  const [qrPoints, setQrPoints] = useState<any[]>([]); // QR Locations
+  const [boundary, setBoundary] = useState<any[]>([]); // Ward Fence
+  const [mode, setMode] = useState<'QR' | 'FENCE'>('QR');
+  const [wardData, setWardData] = useState({ name: '', number: '' });
 
-  useEffect(() => {
-    import('@turf/turf').then(m => setTurf(m));
-  }, []);
+  // --- Click to Sync QR Location ---
+  function MapInteraction() {
+    useMapEvents({
+      click(e) {
+        const { lat, lng } = e.latlng;
+        if (mode === 'QR') {
+          const newQR = { 
+            id: Date.now(), 
+            lat, 
+            lng, 
+            qr_id: `QR-${wardData.number || '0'}-${qrPoints.length + 1}` 
+          };
+          setQrPoints([...qrPoints, newQR]);
+        } else {
+          setBoundary([...boundary, [lat, lng]]);
+        }
+      },
+    });
+    return null;
+  }
 
-  const handleAutoFetch = async () => {
-    if (!searchCity) return toast.error("City name likhein");
-    setIsSaving(true);
-    const geojson = await fetchCityBoundary(searchCity);
-    if (geojson) {
-      setBoundary(geojson);
-      const center = geojson.geometry.coordinates[0][0];
-      setMapCenter([center[1], center[0]]);
-      setWards([]);
-      toast.success("Border Loaded!");
-    } else {
-      toast.error("City not found");
+  const saveToSync = async () => {
+    if (!wardData.name || qrPoints.length === 0) return toast.error("Data missing!");
+
+    // 1. Create Ward Geofence
+    const { data: ward } = await supabase.from('wards').insert({
+      ward_name: wardData.name,
+      ward_number: wardData.number,
+      boundary_geojson: { type: 'Polygon', coordinates: [boundary] }
+    }).select().single();
+
+    if (ward) {
+      // 2. Sync QR IDs with fixed GPS Coords [The WeVois Secret]
+      const syncPoints = qrPoints.map(p => ({
+        ward_id: ward.id,
+        qr_id: p.qr_id,
+        lat: p.lat,
+        lng: p.lng,
+        status: 'RED' // Default status
+      }));
+
+      const { error } = await supabase.from('qr_codes').insert(syncPoints);
+      if (!error) toast.success(`${qrPoints.length} QR locations synced! 🚀`);
     }
-    setIsSaving(false);
-  };
-
-  const partitionWards = () => {
-    if (!turf || !boundary) return toast.error("Pehle border fetch karein!");
-    
-    try {
-      // 1. Geometry Fix: Rewind coordinates for Turf
-      let poly = turf.feature(boundary.geometry);
-      poly = turf.rewind(poly, { reverse: true });
-
-      // 2. Grid Generation inside Polygon
-      const bbox = turf.bbox(poly);
-      const grid = turf.pointGrid(bbox, 0.4, { units: 'kilometers', mask: poly });
-      
-      let seeds = grid.features.slice(0, 10);
-      if (seeds.length < 10) {
-          // Area chota hye toh random points use karein
-          seeds = turf.randomPoint(10, { bbox }).features.filter((p: any) => turf.booleanPointInPolygon(p, poly));
-      }
-
-      // 3. Voronoi logic with intersection
-      const voronoi = turf.voronoi(turf.featureCollection(seeds), { bbox });
-      const resultWards = voronoi.features
-        .map((cell: any) => turf.intersect(cell, poly))
-        .filter((w: any) => w !== null)
-        .slice(0, 10)
-        .map((w: any, i: number) => ({
-          ...w,
-          properties: { ward_number: `Ward ${i + 1}` }
-        }));
-
-      setWards(resultWards);
-      toast.success("Partition Success!");
-    } catch (e) {
-      console.error(e);
-      toast.error("Partition failed. Shape complexity issue.");
-    }
-  };
-
-  const handleSave = async () => {
-    if (!villageId || wards.length === 0) return toast.error("Fill ID and Partition");
-    setIsSaving(true);
-    try {
-      const { error } = await supabase.from('wards').insert(
-        wards.map(w => ({
-          village_id: villageId,
-          ward_number: w.properties.ward_number,
-          boundary_geojson: w.geometry,
-          area_sqm: Math.round(turf.area(w)),
-          status: 'ACTIVE'
-        }))
-      );
-      if (!error) toast.success("Saved to Supabase!");
-      else throw error;
-    } catch (err) { toast.error("Save Error"); }
-    setIsSaving(false);
   };
 
   return (
-    <div className="h-screen w-full bg-slate-100 overflow-hidden relative">
-      <MapContainer key={`${mapCenter[0]}-${mapCenter[1]}`} center={mapCenter} zoom={13} className="h-full w-full z-0">
-        <TileLayer url={isSatellite ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'} />
-        
-        {boundary && (
-          <Polygon positions={boundary.geometry.coordinates[0].map((c: any) => [c[1], c[0]])} pathOptions={{ color: '#3b82f6', weight: 4, fillOpacity: 0.1 }} />
-        )}
+    <div className="h-screen w-full flex bg-white overflow-hidden font-sans">
+      
+      {/* Left Control Panel: Solid WeVois Style */}
+      <aside className="w-[450px] border-r border-slate-100 flex flex-col p-10 bg-white z-50 wevois-panel m-6 rounded-wevois-sm">
+        <header className="mb-10">
+          <h2 className="text-3xl font-black italic tracking-tighter uppercase italic">Sync Designer</h2>
+          <p className="text-sky-500 text-[10px] font-black uppercase tracking-[0.3em] mt-2 italic">QR + Location Mapping</p>
+        </header>
 
-        {wards.map((ward, i) => (
-          <Polygon key={i} positions={ward.geometry.coordinates[0].map((c: any) => [c[1], c[0]])} pathOptions={{ color: '#10b981', weight: 2, fillOpacity: 0.4 }}>
-            <Tooltip permanent direction="center" className="bg-transparent border-none shadow-none text-white font-bold">{ward.properties.ward_number}</Tooltip>
-          </Polygon>
-        ))}
-      </MapContainer>
-
-      {/* iPhone Style Floating UI */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-lg bg-white/90 backdrop-blur-md rounded-[2.5rem] p-4 shadow-2xl flex gap-2 border border-white">
-        <input className="flex-1 bg-transparent px-6 font-bold outline-none" placeholder="Search City (Shirol...)" value={searchCity} onChange={e => setSearchCity(e.target.value)} />
-        <button onClick={handleAutoFetch} className="bg-sky-500 text-white p-4 rounded-full shadow-lg active:scale-90 transition-all"><Target className="w-5 h-5" /></button>
-      </div>
-
-      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-xl bg-white/90 backdrop-blur-md rounded-[3rem] p-8 shadow-2xl border border-white space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button onClick={() => setIsSatellite(!isSatellite)} className="p-4 bg-slate-100 rounded-2xl flex justify-center"><Satellite className="w-5 h-5" /></button>
-          <input className="p-4 bg-slate-50 rounded-2xl font-bold text-center text-xs border shadow-inner" placeholder="Village ID" value={villageId} onChange={e => setVillageId(e.target.value)} />
-          <button onClick={partitionWards} className="bg-emerald-500 text-white p-4 rounded-2xl font-black uppercase text-[10px] shadow-lg flex items-center justify-center gap-2"><Zap className="w-4 h-4" /> Partition</button>
-          <button onClick={handleSave} className="bg-slate-900 text-white p-4 rounded-2xl font-black uppercase text-[10px] shadow-xl flex items-center justify-center gap-2">{isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />} Save</button>
+        <div className="space-y-6 mb-10">
+          <input 
+            placeholder="Ward Name" 
+            className="w-full bg-slate-50 p-6 rounded-3xl font-bold outline-none border-2 border-transparent focus:border-slate-900 transition-all"
+            onChange={e => setWardData({...wardData, name: e.target.value})}
+          />
+          <input 
+            placeholder="Ward ID / No." 
+            className="w-full bg-slate-50 p-6 rounded-3xl font-bold outline-none border-2 border-transparent focus:border-slate-900 transition-all"
+            onChange={e => setWardData({...wardData, number: e.target.value})}
+          />
         </div>
-      </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-10">
+          <button 
+            onClick={() => setMode('QR')}
+            className={`flex flex-col items-center gap-3 p-8 rounded-[2.5rem] transition-all ${mode === 'QR' ? 'bg-slate-900 text-white shadow-2xl' : 'bg-slate-50 text-slate-400'}`}
+          >
+            <QrCode className="w-6 h-6" />
+            <span className="text-[10px] font-black uppercase">Sync QR</span>
+          </button>
+          <button 
+            onClick={() => setMode('FENCE')}
+            className={`flex flex-col items-center gap-3 p-8 rounded-[2.5rem] transition-all ${mode === 'FENCE' ? 'bg-slate-900 text-white shadow-2xl' : 'bg-slate-50 text-slate-400'}`}
+          >
+            <Target className="w-6 h-6" />
+            <span className="text-[10px] font-black uppercase">Draw Fence</span>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-hide">
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest px-4">Mapped Points ({qrPoints.length})</p>
+          {qrPoints.map((p, idx) => (
+            <div key={p.id} className="bg-slate-50 p-5 rounded-3xl flex justify-between items-center group">
+              <div>
+                <p className="text-[10px] font-black text-slate-900">{p.qr_id}</p>
+                <p className="text-[9px] text-slate-400 font-bold">{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</p>
+              </div>
+              <button onClick={() => setQrPoints(qrPoints.filter(q => q.id !== p.id))}><Trash2 className="w-4 h-4 text-rose-400 opacity-0 group-hover:opacity-100 transition-all" /></button>
+            </div>
+          ))}
+        </div>
+
+        <button 
+          onClick={saveToSync}
+          className="mt-8 bg-emerald-500 text-white p-8 rounded-[2.5rem] font-black uppercase tracking-widest text-sm flex items-center justify-center gap-4 hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-100"
+        >
+          <Save className="w-5 h-5" /> Deploy Ward Sync
+        </button>
+      </aside>
+
+      {/* Main Designer Map */}
+      <main className="flex-1 relative">
+        <MapContainer center={[16.6912, 74.4962]} zoom={18} zoomControl={false} className="h-full w-full">
+          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png" />
+          <MapInteraction />
+
+          {/* Draw Ward Boundary */}
+          {boundary.length > 0 && (
+            <Polygon positions={boundary} pathOptions={{ color: '#0F172A', fillColor: '#0F172A', fillOpacity: 0.1, weight: 3 }} />
+          )}
+
+          {/* QR Locations with Sync Labels */}
+          {qrPoints.map((p, i) => (
+            <Marker key={p.id} position={[p.lat, p.lng]}>
+              <div className="flex flex-col items-center">
+                 <div className="bg-slate-900 text-white w-7 h-7 flex items-center justify-center rounded-full text-[9px] font-black border-2 border-white shadow-xl">
+                   {i + 1}
+                 </div>
+              </div>
+            </Marker>
+          ))}
+        </MapContainer>
+        
+        {/* Floating Indicator */}
+        <div className="absolute top-10 right-10 bg-slate-900 text-white px-8 py-4 rounded-full text-[10px] font-black uppercase tracking-widest z-[1000] shadow-2xl italic">
+          Mode: {mode === 'QR' ? 'Drop QR Sync Points' : 'Drawing Ward Fence'}
+        </div>
+      </main>
     </div>
   );
 }
