@@ -2,116 +2,95 @@
 @tailwind components;
 @tailwind utilities;
 
-/* --- Base Resets --- */
+/* --- WeVois Core Resets --- */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-html {
-  scroll-behavior: smooth;
-}
-
 body {
-  /* Updated to a cleaner White/Blue theme */
-  background: #f8fafc; 
+  background: #F8FAFC; /* Light Slate Gray Base */
   min-height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  color: #0F172A; /* Deep Slate Text */
 }
 
-/* --- iPhone Style Glassmorphism (Updated) --- */
-.glass-card {
-  @apply bg-white/80 backdrop-blur-xl border border-white/40 rounded-[2.5rem] shadow-2xl shadow-slate-200/50 transition-all duration-300;
+/* --- WeVois Solid Panel Style [Exact Match: 1.jpg] --- */
+/* Apple style blur hatakar humne ise Solid White kiya hye */
+.wevois-panel {
+  background: #FFFFFF !important;
+  border: 1px solid #F1F5F9;
+  /* Darker, defined shadows for that "Mission Control" look */
+  box-shadow: 0 40px 100px -20px rgba(15, 23, 42, 0.2) !important;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.glass-card-sm {
-  @apply bg-white/70 backdrop-blur-md border border-white/20 rounded-[1.5rem] shadow-lg;
+.wevois-panel:hover {
+  box-shadow: 0 50px 120px -20px rgba(15, 23, 42, 0.25) !important;
 }
 
-.glass-card-lg {
-  /* Heavy rounding for the "iPhone" look */
-  @apply bg-white/90 backdrop-blur-2xl border border-white/50 rounded-[3.5rem] shadow-2xl;
+/* --- Rounding Logic [Exact Match: dashboard issue 121.png] --- */
+.rounded-wevois-lg {
+  border-radius: 4.5rem !important;
 }
 
-.glass-button {
-  @apply bg-white/80 hover:bg-sky-500 hover:text-white backdrop-blur-md border border-white/30 rounded-2xl px-6 py-3 font-bold text-xs uppercase tracking-widest transition-all duration-300 shadow-sm hover:shadow-sky-200;
+.rounded-wevois-sm {
+  border-radius: 2.5rem !important;
 }
 
-.glass-input {
-  @apply bg-slate-50/50 backdrop-blur-md border border-slate-100 rounded-2xl px-6 py-4 focus:outline-none focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 transition-all font-medium text-slate-800 placeholder:text-slate-400;
-}
-
-/* --- Master Map Styling (New Additions) --- */
-.iphone-rounded-map {
-  border-radius: 4rem;
-  border: 12px solid white;
-  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.15);
-}
-
+/* --- Map Styling --- */
 .leaflet-container {
-  @apply rounded-none overflow-hidden bg-slate-100;
+  background: #E2E8F0 !important;
+  outline: none;
 }
 
-/* Ward Label Tooltip */
-.leaflet-tooltip {
-  @apply bg-white/95 px-3 py-1.5 rounded-xl font-black text-sky-600 uppercase text-[10px] shadow-2xl border-none !important;
+/* Exact WeVois Dark Tooltip */
+.leaflet-tooltip-wevois {
+  background: #0F172A !important; /* Solid Dark Slate */
+  color: #FFFFFF !important;
+  border: none !important;
+  border-radius: 2rem !important;
+  padding: 10px 20px !important;
+  font-weight: 900 !important;
+  font-style: italic !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3) !important;
 }
 
-/* --- Professional Scrollbar (Updated) --- */
+/* --- Stats & Numbers --- */
+.stat-number {
+  @apply font-black italic tracking-tighter leading-none;
+  font-family: 'Inter', sans-serif;
+}
+
+/* --- Custom Scrollbar for Pro Look --- */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #F8FAFC;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-200 rounded-full hover:bg-sky-400 transition-colors;
+  background: #CBD5E1;
+  border-radius: 10px;
 }
 
-/* --- Badge & Status Logic --- */
-.badge-active, .badge-completed {
-  @apply bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest;
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
 }
 
-.badge-inactive, .badge-pending {
-  @apply bg-rose-50 text-rose-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest;
+/* --- Animation for Smooth Transitions --- */
+.animate-wevois-in {
+  animation: wevoisFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.badge-warning {
-  @apply bg-amber-50 text-amber-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest;
-}
-
-/* --- Table & UI Components --- */
-.table-container {
-  @apply overflow-hidden rounded-[2.5rem] bg-white border border-slate-100;
-}
-
-.table-header {
-  @apply bg-slate-50/50 border-b border-slate-100 text-[10px] font-black uppercase text-slate-400 tracking-widest;
-}
-
-.table-row {
-  @apply border-b border-slate-50 hover:bg-slate-50/80 transition-all;
-}
-
-/* --- Custom Animations --- */
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
+@keyframes wevoisFadeIn {
+  from { opacity: 0; transform: translateY(30px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-slide-up {
-  animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* --- Responsive Adjustments --- */
-@media (max-width: 768px) {
-  .glass-card { @apply rounded-[1.5rem]; }
-  .glass-card-lg { @apply rounded-[2rem]; }
 }
