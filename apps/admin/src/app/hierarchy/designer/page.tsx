@@ -3,18 +3,18 @@
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
-import { QrCode, Save, Target, Loader2, Terminal, Map as MapIcon, Trash2 } from 'lucide-react';
+import { QrCode, Save, Target, Loader2, Terminal, Map as MapIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import 'leaflet/dist/leaflet.css';
 
-// --- SSR Safe Leaflet ---
+// --- SSR SAFE COMPONENTS ---
 const MapContainer = dynamic(() => import('react-leaflet').then(m => m.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(m => m.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(m => m.Marker), { ssr: false });
 const Polygon = dynamic(() => import('react-leaflet').then(m => m.Polygon), { ssr: false });
 const useMapEvents = dynamic(() => import('react-leaflet').then(m => m.useMapEvents), { ssr: false });
 
-export default function WardDesignerFinal() {
+export default function WardDesignerFinalFix() {
   const [L, setL] = useState<any>(null);
   const [qrPoints, setQrPoints] = useState<any[]>([]);
   const [boundary, setBoundary] = useState<any[]>([]);
@@ -24,42 +24,37 @@ export default function WardDesignerFinal() {
   const [logs, setLogs] = useState<string[]>([]);
 
   useEffect(() => {
-    import('leaflet').then((leaflet) => {
-      // Leaflet Default Icon Fix (Important for deployment)
-      delete (leaflet.Icon.Default.prototype as any)._getIconUrl;
-      leaflet.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      });
-      setL(leaflet);
-    });
+    import('leaflet').then((leaflet) => setL(leaflet));
   }, []);
 
-  // --- Click Logic ---
-  function MapEvents() {
+  // --- FORCE CLICK COMPONENT ---
+  function MapClickHandler() {
     useMapEvents({
       click(e) {
-        const { lat, lng } = e.latlng;
-        if (mode === 'QR') {
-          setQrPoints((prev) => [...prev, { id: Date.now(), lat, lng }]);
-          setLogs((prev) => [`Point Added: ${lat.toFixed(5)}`, ...prev].slice(0, 5));
-        } else {
-          setBoundary((prev) => [...prev, [lat, lng]]);
-          setLogs((prev) => [`Fence Node Added`, ...prev].slice(0, 5));
+        // Prevent event from bubbling
+        if (L) {
+          const { lat, lng } = e.latlng;
+          if (mode === 'QR') {
+            setQrPoints((prev) => [...prev, { id: Date.now(), lat, lng }]);
+            setLogs((prev) => [`Point Added: ${lat.toFixed(4)}`, ...prev].slice(0, 5));
+          } else {
+            setBoundary((prev) => [...prev, [lat, lng]]);
+            setLogs((prev) => [`Boundary Node Added`, ...prev].slice(0, 5));
+          }
         }
       },
     });
     return null;
   }
 
+  // Glowing Icon
   const createIcon = (num: number) => {
     if (!L) return null;
     return L.divIcon({
       className: 'custom-icon',
-      html: `<div style="background:#0ea5e9;color:white;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid white;font-weight:900;font-size:10px;box-shadow:0 0 15px #0ea5e9">${num}</div>`,
-      iconSize: [26, 26],
-      iconAnchor: [13, 13]
+      html: `<div style="background:#0ea5e9;color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid white;font-weight:900;font-size:10px;box-shadow:0 0 15px #0ea5e9">${num}</div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
     });
   };
 
@@ -79,7 +74,8 @@ export default function WardDesignerFinal() {
         ward_id: ward.id,
         qr_id: `QR-${wardData.number}-${i + 1}`,
         lat: p.lat,
-        lng: p.lng
+        lng: p.lng,
+        status: 'RED'
       }));
 
       const { error: pErr } = await supabase.from('qr_codes').insert(syncPoints);
@@ -95,45 +91,39 @@ export default function WardDesignerFinal() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#0F172A] overflow-hidden relative">
+    <div className="flex h-screen w-full bg-slate-900 overflow-hidden relative">
       
-      {/* Sidebar UI */}
-      <aside className="w-[400px] bg-white m-6 rounded-[3rem] p-8 flex flex-col gap-6 z-[2000] shadow-2xl overflow-y-auto">
-        <h2 className="text-2xl font-black uppercase italic tracking-tighter">Ward Designer</h2>
+      {/* SIDEBAR - z-index high rakha hai taaki button click ho */}
+      <aside className="w-[400px] bg-white m-6 rounded-[3rem] p-8 flex flex-col gap-6 z-[9999] shadow-2xl overflow-y-auto">
+        <h2 className="text-2xl font-black italic">Ward Designer</h2>
         
-        <div className="space-y-3">
-          <input placeholder="Ward Number (e.g. 01)" className="w-full bg-slate-50 p-5 rounded-2xl font-bold outline-none ring-sky-500 focus:ring-2 transition-all" onChange={e => setWardData({...wardData, number: e.target.value})} />
-          <input placeholder="Ward Name" className="w-full bg-slate-50 p-5 rounded-2xl font-bold outline-none ring-sky-500 focus:ring-2 transition-all" onChange={e => setWardData({...wardData, name: e.target.value})} />
-        </div>
-
+        <input placeholder="Ward No. (01)" className="w-full bg-slate-50 p-5 rounded-2xl font-bold border-none outline-none" onChange={e => setWardData({...wardData, number: e.target.value})} />
+        
         <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => setMode('QR')} className={`p-6 rounded-3xl flex flex-col items-center gap-2 transition-all ${mode === 'QR' ? 'bg-slate-900 text-white shadow-xl' : 'bg-slate-100 text-slate-400'}`}>
-            <QrCode className="w-6 h-6" /> <span className="text-[10px] font-black uppercase">Sync QR</span>
-          </button>
-          <button onClick={() => setMode('FENCE')} className={`p-6 rounded-3xl flex flex-col items-center gap-2 transition-all ${mode === 'FENCE' ? 'bg-slate-900 text-white shadow-xl' : 'bg-slate-100 text-slate-400'}`}>
-            <Target className="w-6 h-6" /> <span className="text-[10px] font-black uppercase">Boundary</span>
-          </button>
+          <button onClick={() => setMode('QR')} className={`p-6 rounded-3xl font-bold ${mode === 'QR' ? 'bg-slate-900 text-white' : 'bg-slate-100'}`}>Plot QR</button>
+          <button onClick={() => setMode('FENCE')} className={`p-6 rounded-3xl font-bold ${mode === 'FENCE' ? 'bg-slate-900 text-white' : 'bg-slate-100'}`}>Fence</button>
         </div>
 
-        <div className="bg-slate-900 rounded-[2rem] p-6 font-mono text-[10px] text-emerald-400 min-h-[100px] border border-slate-800">
-           {logs.map((log, i) => <p key={i}>{`> ${log}`}</p>)}
+        <div className="bg-slate-900 rounded-3xl p-5 font-mono text-[10px] text-emerald-400 min-h-[100px]">
+           {logs.map((l, i) => <p key={i}>{`> ${l}`}</p>)}
         </div>
 
-        <button onClick={handleSave} disabled={isSaving} className="bg-sky-500 text-white p-7 rounded-[2.5rem] font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">
-          {isSaving ? <Loader2 className="animate-spin" /> : "Deploy Ward Sync"}
+        <button onClick={handleSave} disabled={isSaving} className="bg-sky-500 text-white p-6 rounded-[2rem] font-black uppercase text-xs">
+          {isSaving ? "Saving..." : "Deploy Ward"}
         </button>
       </aside>
 
-      {/* Main Map - Fixed Interaction */}
+      {/* MAP - Main interaction area */}
       <main className="flex-1 relative z-0">
         <MapContainer 
           center={[16.6780, 74.5564]} 
           zoom={17} 
           zoomControl={false} 
-          style={{ height: '100%', width: '100%' }}
+          className="h-full w-full"
+          style={{ cursor: 'crosshair' }} // Cursor badal diya taaki pata chale click area hai
         >
           <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png" />
-          <MapEvents />
+          <MapClickHandler />
           
           {boundary.length > 0 && (
             <Polygon positions={boundary} pathOptions={{ color: '#0ea5e9', weight: 3, fillOpacity: 0.1 }} />
@@ -143,8 +133,10 @@ export default function WardDesignerFinal() {
             <Marker key={p.id} position={[p.lat, p.lng]} icon={createIcon(i + 1)} />
           ))}
         </MapContainer>
-        <div className="absolute top-10 right-10 bg-slate-900/80 backdrop-blur-md text-white px-8 py-3 rounded-full text-[10px] font-black uppercase z-[1000] border border-white/20">
-          Click Map to {mode}
+        
+        {/* Helper Badge */}
+        <div className="absolute top-10 right-10 bg-sky-500 text-white px-6 py-2 rounded-full text-[10px] font-black z-[5000]">
+          CLICK ON MAP TO {mode}
         </div>
       </main>
     </div>
